@@ -84,7 +84,7 @@
 
 ## 许可证 (License)
 
-(待定 - 请选择一个合适的开源许可证，例如 MIT License 或 GPL)
+MIT License
 
 ---
 

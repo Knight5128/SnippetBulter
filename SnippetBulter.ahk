@@ -19,6 +19,7 @@
 #Include %A_ScriptDir%\src\hotkey_manager.ahk
 #Include %A_ScriptDir%\src\ui_handler.ahk
 #Include %A_ScriptDir%\src\script_integrator.ahk
+#Include %A_ScriptDir%\src\webview2_packager.ahk  ; 添加WebView2打包模块
 
 ; -------------------- 应用初始化 --------------------
 ; 初始化应用
@@ -95,6 +96,11 @@ SetupTrayIcon() {
     A_TrayMenu.Add()  ; 添加分隔符
     A_TrayMenu.Add("关于", (*) => ShowAbout())
     A_TrayMenu.Add("退出", (*) => ExitApp())
+    A_TrayMenu.Add()  ; 添加分隔符
+    A_TrayMenu.Add("安装WebView2运行时", (*) => InstallWebView2Runtime())
+    A_TrayMenu.Add("注册WebView2组件", (*) => RegisterWebView2Components())
+    A_TrayMenu.Add("WebView2打包向导", (*) => ShowPackagingWizard())
+    A_TrayMenu.Add()  ; 添加分隔符
     A_TrayMenu.Default := "打开管理面板"
 }
 

@@ -339,8 +339,8 @@
                                         正在加载...
                                     </div>
                                 </div>
-            </div>
-            
+                            </div>
+                            
                             <!-- 片段列表 -->
                             <div class="col-md-8">
                                 <div id="snippets-toolbar" class="d-flex justify-content-between align-items-center mb-3">
@@ -360,10 +360,10 @@
                                                 <li><a id="export-data-btn" class="dropdown-item" href="#"><i class="bi bi-box-arrow-up"></i> 导出数据</a></li>
                                                 <li><a id="import-data-btn" class="dropdown-item" href="#"><i class="bi bi-box-arrow-in-down"></i> 导入数据</a></li>
                                             </ul>
-            </div>
-            </div>
-        </div>
-        
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <div id="snippets-list" class="card-container snippets-sortable">
                                     <!-- 片段将在这里动态生成 -->
                                     <div class="text-center p-5 text-muted">
@@ -389,13 +389,13 @@
                                                 <div class="input-group">
                                                     <input type="text" id="hotkey-input" class="form-control" placeholder="点击录制热键组合" readonly>
                                                     <button id="record-hotkey-btn" class="btn btn-outline-secondary" type="button">录制</button>
-                        </div>
+                                                </div>
                                                 <div class="form-text">当前热键: <span id="current-hotkey">加载中...</span></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <div class="col-md-6">
                                     <div class="card mb-3">
                                         <div class="card-header bg-light">
@@ -410,11 +410,11 @@
                                                 <input class="form-check-input" type="checkbox" id="always-on-top-switch">
                                                 <label class="form-check-label" for="always-on-top-switch">片段选择器窗口始终置顶</label>
                                             </div>
-                        </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            </div>
-                        </div>
-                        
+                            
                             <div class="card mb-3">
                                 <div class="card-header bg-light">
                                     <h5 class="mb-0"><i class="bi bi-puzzle me-2"></i>集成功能</h5>
@@ -433,31 +433,31 @@
                                                 <input class="form-check-input" type="checkbox" id="on-screen-keyboard-switch">
                                                 <label class="form-check-label" for="on-screen-keyboard-switch">启用屏幕键盘</label>
                                                 <div class="form-text">按Win+K显示/隐藏屏幕键盘</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-                    <div class="settings-section">
-                                <h3>设置</h3>
-                                <div class="setting-item">
-                                    <label>
-                                        <input type="checkbox" id="enableGlobalHotkey"> 启用全局快捷键
-                                    </label>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="setting-item hotkey-settings" style="display: none;">
-                                    <label>全局快捷键：</label>
-                                    <input type="text" id="globalHotkeyInput" placeholder="点击此处按下快捷键" readonly>
-                                    <button id="saveHotkey">保存快捷键</button>
                             </div>
                         </div>
                         
-                            <div class="text-end">
-                                <button type="button" id="save-settings-btn" class="btn btn-primary">保存设置</button>
+                        <div class="settings-section">
+                            <h3>设置</h3>
+                            <div class="setting-item">
+                                <label>
+                                    <input type="checkbox" id="enableGlobalHotkey"> 启用全局快捷键
+                                </label>
                             </div>
-                        </form>
-                    </div>
+                            <div class="setting-item hotkey-settings" style="display: none;">
+                                <label>全局快捷键：</label>
+                                <input type="text" id="globalHotkeyInput" placeholder="点击此处按下快捷键" readonly>
+                                <button id="saveHotkey">保存快捷键</button>
+                            </div>
+                        </div>
+                        
+                        <div class="text-end">
+                            <button type="button" id="save-settings-btn" class="btn btn-primary">保存设置</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -467,12 +467,12 @@
     <!-- 添加/编辑片段对话框 -->
     <div class="modal fade" id="snippet-modal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-content">
+                <div class="modal-header">
                     <h5 class="modal-title" id="snippet-modal-title">添加片段</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
+                </div>
+                <div class="modal-body">
                     <form id="snippet-form">
                         <input type="hidden" id="snippet-id">
                         <div class="mb-3">
@@ -488,7 +488,7 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
                     <button type="button" id="save-snippet-btn" class="btn btn-primary">保存</button>
-            </div>
+                </div>
             </div>
         </div>
     </div>
@@ -496,12 +496,12 @@
     <!-- 添加/重命名分组对话框 -->
     <div class="modal fade" id="group-modal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-content">
+                <div class="modal-header">
                     <h5 class="modal-title" id="group-modal-title">添加分组</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
+                </div>
+                <div class="modal-body">
                     <form id="group-form">
                         <input type="hidden" id="old-group-name">
                         <div class="mb-3">
@@ -521,15 +521,15 @@
     <!-- 确认删除对话框 -->
     <div class="modal fade" id="confirm-modal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-content">
+                <div class="modal-header">
                     <h5 class="modal-title" id="confirm-modal-title">确认操作</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+                </div>
                 <div class="modal-body" id="confirm-modal-body">
                     确定要执行此操作吗？
-            </div>
-            <div class="modal-footer">
+                </div>
+                <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
                     <button type="button" id="confirm-action-btn" class="btn btn-danger">确定</button>
                 </div>
@@ -537,9 +537,39 @@
         </div>
     </div>
 
-    <!-- Bootstrap JS 和 Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- 自定义脚本 -->
+    <!-- 开发模式提示 -->
+    <div class="modal fade" id="dev-mode-info" tabindex="-1" aria-labelledby="dev-mode-info-label" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="dev-mode-info-label">开发模式提示</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>您正在使用开发模式访问此页面。在此模式下：</p>
+                    <ul>
+                        <li>所有数据仅保存在浏览器的本地存储中</li>
+                        <li>修改不会同步到应用程序</li>
+                        <li>某些功能可能无法正常工作</li>
+                    </ul>
+                    <p>如果您是开发人员，可以在URL中添加<code>?dev=true</code>参数来强制启用开发模式。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入JS库 -->
+    <script src="https://code.jquery.com/jquery-3.6.3.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 存储模块 -->
+    <script src="js/store.js"></script>
+    
+    <!-- 主脚本 -->
     <script src="js/main.js"></script>
 </body>
 </html> 

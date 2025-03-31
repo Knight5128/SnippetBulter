@@ -1,0 +1,25 @@
+
+# 待办事项
+
+1. 修复“创建WWebView2环境失败。错误代码：0xFFFFFFFF80004003”报错
+2. 修复全局热键注册失败问题
+3. 完善管理面板内更改热键的逻辑
+4. 构建应用自动安装包，并自动安装必须的运行时文件程序
+5. 构建前端网站
+
+
+## 目前正在修复的bug
+
+原因排查——
+
+1. 在安装WebView2运行时的时候没有关闭edge？
+
+
+关于webview2运行时的分发——https://learn.microsoft.com/zh-cn/microsoft-edge/webview2/concepts/distribution?tabs=dotnetcsharp
+# 
+有关 Evergreen Runtime 分发模式的详细信息
+一节中，有重要信息
+
+
+下载Microsoft Edge WebView2
+https://developer.microsoft.com/zh-cn/microsoft-edge/webview2/consumer/?cs=1648135533&form=MA13LH

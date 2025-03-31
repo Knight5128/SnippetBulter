@@ -20,86 +20,374 @@ global currentHotkey := ""
 InitWebView2() {
     try {
         ; 检查WebView2运行时是否已安装
-        if !WebView2.GetInstalledVersion() {
-            result := MsgBox("WebView2运行时未安装，是否现在安装？`n这是显示现代化界面所必需的。", "缺少WebView2运行时", "YesNo Icon!")
-            if result = "Yes" {
-                ; 下载并安装 WebView2 运行时
-                bootstrapperUrl := "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
-                bootstrapperPath := A_Temp "\MicrosoftEdgeWebview2Setup.exe"
+        if !IsWebView2Installed() {
+            errorMsg := "未检测到WebView2运行时。`n`n"
+            errorMsg .= "WebView2是显示现代Web界面所必需的组件。`n"
+            
+            ; 检查是否有打包的WebView2运行时
+            if FileExist(A_ScriptDir "\resources\MicrosoftEdgeWebview2Setup.exe") {
+                errorMsg .= "检测到应用包含WebView2引导安装程序。`n是否立即安装？"
                 
-                ; 下载安装程序
-                try {
-                    Download bootstrapperUrl, bootstrapperPath
-                } catch Error as e {
-                    MsgBox("下载 WebView2 运行时失败。`n错误信息: " e.Message, "错误", "Icon!")
-                    return false
-                }
-                
-                ; 运行安装程序
-                try {
-                    RunWait bootstrapperPath " /silent /install"
-                    FileDelete bootstrapperPath
-                } catch Error as e {
-                    MsgBox("安装 WebView2 运行时失败。`n错误信息: " e.Message, "错误", "Icon!")
-                    return false
-                }
-                
-                ; 等待安装完成
-                loop 10 {
-                    if WebView2.GetInstalledVersion()
-                        break
-                    Sleep 1000
-                }
-                
-                if !WebView2.GetInstalledVersion() {
-                    MsgBox("WebView2 运行时安装可能未完成，请重启应用。", "警告", "Icon!")
+                if MsgBox(errorMsg, "WebView2运行时检查", "YesNo Icon!") = "Yes" {
+                    ToolTip("正在从应用包安装WebView2运行时...")
+                    RunWait(A_ScriptDir "\resources\MicrosoftEdgeWebview2Setup.exe /silent /install", , "Hide")
+                    
+                    ToolTip("安装完成，正在检查...")
+                    Sleep(2000)
+                    ToolTip()
+                    
+                    ; 检查安装是否成功
+                    if IsWebView2Installed() {
+                        MsgBox("WebView2运行时安装成功！", "安装成功", "Icon!")
+                    } else {
+                        MsgBox("WebView2运行时似乎未能正确安装。请手动安装或重启程序后再试。", "安装可能失败", "Icon!")
+                        return false
+                    }
+                } else {
+                    MsgBox("没有WebView2运行时，程序可能无法正常工作。", "警告", "Icon!")
                     return false
                 }
             } else {
+                ; 使用在线安装方式
+                errorMsg .= "是否自动下载并安装WebView2运行时？"
+                
+                if MsgBox(errorMsg, "WebView2运行时检查", "YesNo Icon!") = "Yes" {
+                    ; 尝试自动安装WebView2运行时
+                    if !InstallWebView2Runtime() {
+                        MsgBox("WebView2运行时安装失败，程序可能无法正常工作。", "安装失败", "Icon!")
+                        return false
+                    }
+                    
+                    ; 安装成功后再次检查
+                    if !IsWebView2Installed() {
+                        MsgBox("WebView2运行时似乎已安装，但系统尚未正确识别。`n请重启应用程序后再试。", "需要重启", "Icon!")
+                        return false
+                    }
+                    
+                    MsgBox("WebView2运行时安装成功！", "安装成功", "Icon!")
+                } else {
+                    MsgBox("没有WebView2运行时，程序可能无法正常工作。`n您可以稍后从托盘菜单中选择安装。", "警告", "Icon!")
+                    return false
+                }
+            }
+        }
+        
+        ; 定义用户数据目录
+        userDataDir := A_AppData "\SnippetButler\WebView2Data"
+        DirCreate(userDataDir)
+        
+        ; 输出调试信息
+        ToolTip("正在初始化WebView2...`n用户数据目录：" userDataDir)
+        SetTimer () => ToolTip(), -2000
+
+        ; 加载 WebView2Loader.dll
+        dllPath := A_ScriptDir "\WebView2Loader.dll"
+        if !FileExist(dllPath) {
+            ; 尝试多个可能的路径
+            possiblePaths := [
+                A_ScriptDir "\WebView2Loader.dll",
+                A_ScriptDir "\src\lib\WebView2Loader.dll",
+                A_WinDir "\System32\WebView2Loader.dll",
+                A_WinDir "\SysWOW64\WebView2Loader.dll",
+                "WebView2Loader.dll"  ; 系统路径搜索
+            ]
+            
+            dllPath := ""
+            for path in possiblePaths {
+                if FileExist(path) {
+                    dllPath := path
+                    break
+                }
+            }
+            
+            if !dllPath {
+                errorMsg := "未找到 WebView2Loader.dll，请确保：`n"
+                errorMsg .= "1. WebView2运行时已安装`n"
+                errorMsg .= "2. WebView2Loader.dll 位于脚本目录或系统路径`n"
+                errorMsg .= "3. 已以管理员权限运行此程序`n`n"
+                errorMsg .= "是否下载并安装 WebView2 运行时？"
+                
+                if MsgBox(errorMsg, "找不到 WebView2Loader.dll", "YesNo Icon!") = "Yes" {
+                    Run("https://developer.microsoft.com/microsoft-edge/webview2/")
+                }
                 return false
             }
         }
         
-        ; 尝试初始化 COM
-        if !DllCall("ole32\CoInitialize", "Ptr", 0) {
-            MsgBox("初始化COM组件失败。`n错误代码: " A_LastError, "错误", "Icon!")
-            return false
-        }
-        
-        ; 尝试从系统目录加载 WebView2Loader.dll
-        dllPath := "C:\Windows\SysWOW64\WebView2Loader.dll"
-        if !FileExist(dllPath) {
-            MsgBox("找不到 WebView2Loader.dll，请确保 WebView2 运行时已正确安装。", "错误", "Icon!")
-            return false
-        }
-        
-        ; 加载 DLL
         hModule := DllCall("LoadLibrary", "Str", dllPath, "Ptr")
         if !hModule {
-            MsgBox("加载 WebView2Loader.dll 失败。错误代码: " A_LastError, "错误", "Icon!")
+            errorCode := A_LastError
+            errorMsg := "加载 WebView2Loader.dll 失败。`n"
+            errorMsg .= "错误代码: " errorCode "`n"
+            errorMsg .= "请确保WebView2Loader.dll位于正确位置`n"
+            errorMsg .= "尝试的路径: " dllPath
+            MsgBox(errorMsg, "错误", "Icon!")
             return false
         }
-        
-        ; 获取创建环境的函数地址
-        CreateCoreWebView2Environment := DllCall("GetProcAddress", "Ptr", hModule, "AStr", "CreateCoreWebView2Environment", "Ptr")
+
+        ; 获取函数地址
+        CreateCoreWebView2Environment := DllCall("GetProcAddress", "Ptr", hModule, 
+            "AStr", "CreateCoreWebView2Environment", "Ptr")
         if !CreateCoreWebView2Environment {
-            MsgBox("获取 CreateCoreWebView2Environment 函数失败。错误代码: " A_LastError, "错误", "Icon!")
+            errorCode := A_LastError
+            MsgBox("获取 CreateCoreWebView2Environment 函数失败。`n错误代码: " errorCode, "错误", "Icon!")
+            DllCall("FreeLibrary", "Ptr", hModule)
             return false
         }
+
+        ; 转换用户数据目录为 UTF-16 指针
+        userDataDirPtr := Buffer(StrPut(userDataDir, "UTF-16") * 2)
+        StrPut(userDataDir, userDataDirPtr, "UTF-16")
         
-        ; 确保UI目录存在
-        uiDir := A_ScriptDir "\ui"
-        if !DirExist(uiDir) {
-            DirCreate(uiDir)
-            DirCreate(uiDir "\css")
-            DirCreate(uiDir "\js")
+        ; 确认指针有效
+        if (!userDataDirPtr || !userDataDirPtr.Ptr) {
+            MsgBox("创建用户数据目录指针失败", "错误", "Icon!")
+            DllCall("FreeLibrary", "Ptr", hModule)
+            return false
         }
+
+        ; 定义异步回调
+        handler := CallbackCreate(EnvironmentCreatedHandler, "Fast")
+        if (!handler) {
+            MsgBox("创建回调函数失败", "错误", "Icon!")
+            DllCall("FreeLibrary", "Ptr", hModule)
+            return false
+        }
+
+        ; 记录参数信息用于调试
+        debugInfo := "调用参数信息：`n"
+        debugInfo .= "browserExecutableFolder: NULL (使用默认)`n"
+        debugInfo .= "userDataFolder: " userDataDir "`n"
+        debugInfo .= "userDataFolderPtr: " Format("0x{:p}", userDataDirPtr.Ptr) "`n"
+        debugInfo .= "handler: " Format("0x{:p}", handler)
+        OutputDebug(debugInfo)
+
+        ; 调用 CreateCoreWebView2Environment
+        hr := DllCall(CreateCoreWebView2Environment,
+            "Ptr", 0,                  ; browserExecutableFolder
+            "Ptr", userDataDirPtr.Ptr, ; userDataFolder
+            "Ptr", 0,                  ; environmentOptions
+            "Ptr", handler,            ; 回调函数
+            "UInt")
+
+        if (hr != 0) {
+            ; 解析错误代码
+            errorMsg := "创建WebView2环境失败。`n"
+            errorMsg .= "错误代码: " Format("0x{:08X}", hr) " "
+            
+            ; 常见错误代码解析
+            switch hr {
+                case 0x80004003: errorMsg .= "(E_POINTER) - 无效指针，userDataDir或handler参数可能有问题"
+                case 0x80070057: errorMsg .= "(E_INVALIDARG) - 无效参数，检查参数类型和值"
+                case 0x80070002: errorMsg .= "(ERROR_FILE_NOT_FOUND) - 找不到文件，WebView2运行时可能未安装"
+                case 0x8007007E: errorMsg .= "(ERROR_MOD_NOT_FOUND) - 找不到模块，WebView2运行时可能未正确安装"
+                case 0x80070005: errorMsg .= "(E_ACCESSDENIED) - 访问被拒绝，检查文件夹权限"
+                default: errorMsg .= "(未知错误) - 请确保WebView2运行时已正确安装"
+            }
+            
+            errorMsg .= "`n`n可能的解决方案:`n"
+            errorMsg .= "1. 安装/重新安装WebView2运行时`n"
+            errorMsg .= "2. 确保应用有足够的权限`n"
+            errorMsg .= "3. 检查" userDataDir "目录权限"
+            
+            MsgBox(errorMsg, "错误", "Icon!")
+            
+            CallbackFree(handler)
+            DllCall("FreeLibrary", "Ptr", hModule)
+            return false
+        }
+
+        ; 保存全局引用以防止过早释放
+        global g_hModule := hModule
+        global g_handler := handler
+        global g_userDataDirPtr := userDataDirPtr
         
         return true
     } catch Error as e {
-        MsgBox("初始化WebView2失败。`n错误信息: " e.Message "`n错误代码: " e.Extra, "错误", "Icon!")
+        MsgBox("初始化 WebView2 时发生异常：`n" e.Message "`n" e.Extra "`n" e.Stack, "错误", "Icon!")
         return false
     }
+}
+
+; 检查WebView2运行时是否已安装
+IsWebView2Installed() {
+    ; 方法1: 检查注册表
+    ; 检查注册表中WebView2运行时的安装状态
+    isInstalled := false
+    
+    ; 定义待检查的注册表路径
+    regPaths := [
+        ; HKLM路径 (适用于系统级安装)
+        "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+        "HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+        
+        ; HKCU路径 (适用于用户级安装)
+        "HKEY_CURRENT_USER\Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+    ]
+    
+    ; 获取当前系统位数对应的注册表视图
+    regView := A_Is64bitOS ? "64" : "32"
+    
+    For _, regPath in regPaths {
+        OutputDebug("检查注册表路径: " regPath)
+        
+        Try {
+            ; 检查注册表路径是否存在
+            Loop Reg, regPath, regView {
+                ; 检查pv (版本)值
+                Try {
+                    version := RegRead(regPath, "pv")
+                    OutputDebug("找到WebView2版本: " version)
+                    
+                    ; 判断版本是否有效
+                    if (version != "" && version != "null" && version != "0.0.0.0") {
+                        isInstalled := true
+                        break
+                    }
+                } Catch {
+                    ; 如果无法读取pv值，继续检查下一个
+                    OutputDebug("无法读取版本信息")
+                }
+                
+                ; 如果找到路径但没有跳出循环，表示可能版本值无效
+                isInstalled := false
+                break
+            }
+            
+            ; 如果已确认安装，跳出外层循环
+            if (isInstalled)
+                break
+        } Catch {
+            ; 如果无法访问此注册表路径，继续检查下一个
+            OutputDebug("无法访问注册表路径: " regPath)
+        }
+    }
+    
+    ; 如果在注册表中找到了有效安装，直接返回
+    if (isInstalled) {
+        OutputDebug("通过注册表确认WebView2已安装")
+        return true
+    }
+    
+    ; 方法2: 检查典型的WebView2运行时文件
+    filePaths := [
+        A_WinDir "\System32\msedgewebview2.exe",
+        A_WinDir "\SysWOW64\msedgewebview2.exe"
+    ]
+    
+    For _, filePath in filePaths {
+        if FileExist(filePath) {
+            OutputDebug("找到WebView2文件: " filePath)
+            return true
+        }
+    }
+    
+    ; 方法3: 尝试创建WebView2环境对象
+    Try {
+        comObj := ComObject("{2CD8A007-E189-409D-A2C8-9AF4EF3C72AA}", "{EF6F1F1E-9EB4-4F8F-9472-E8F7861E1F25}")
+        OutputDebug("成功创建WebView2 COM对象")
+        return true
+    } Catch Error as e {
+        OutputDebug("创建WebView2 COM对象失败: " e.Message)
+    }
+    
+    ; 所有检测方法都失败，返回未安装
+    OutputDebug("未检测到WebView2运行时")
+    return false
+}
+
+; 安装WebView2运行时
+InstallWebView2Runtime() {
+    ; 定义安装目录
+    installDir := A_ScriptDir "\Runtime"
+    if !DirExist(installDir)
+        DirCreate(installDir)
+    
+    ; 引导安装方式
+    bootstrapperPath := installDir "\MicrosoftEdgeWebview2Setup.exe"
+    
+    ; 检查是否已下载引导程序
+    if !FileExist(bootstrapperPath) {
+        ; 尝试从资源目录复制
+        if FileExist(A_ScriptDir "\resources\MicrosoftEdgeWebview2Setup.exe") {
+            FileCopy(A_ScriptDir "\resources\MicrosoftEdgeWebview2Setup.exe", bootstrapperPath)
+        } else {
+            ; 下载引导程序
+            try {
+                ToolTip("正在下载WebView2引导安装程序...")
+                Download("https://go.microsoft.com/fwlink/p/?LinkId=2124703", bootstrapperPath)
+                ToolTip("下载完成！")
+                SetTimer () => ToolTip(), -2000
+            } catch Error as e {
+                ToolTip()
+                MsgBox("下载WebView2引导安装程序失败: " e.Message, "下载错误", "Icon!")
+                
+                ; 提供其他下载选项
+                if MsgBox("是否打开浏览器下载WebView2运行时？", "下载选项", "YesNo Icon!") = "Yes"
+                    Run("https://developer.microsoft.com/microsoft-edge/webview2/")
+                    
+                return false
+            }
+        }
+    }
+    
+    ; 执行引导安装程序
+    if FileExist(bootstrapperPath) {
+        try {
+            ToolTip("正在安装WebView2运行时...")
+            ; 使用/silent参数静默安装
+            RunWait(bootstrapperPath " /silent /install", , "Hide")
+            ToolTip("WebView2运行时安装完成！")
+            SetTimer () => ToolTip(), -2000
+            return true
+        } catch Error as e {
+            ToolTip()
+            MsgBox("安装WebView2运行时失败: " e.Message, "安装错误", "Icon!")
+            return false
+        }
+    } else {
+        MsgBox("未找到WebView2引导安装程序。", "安装错误", "Icon!")
+        return false
+    }
+    
+    return false
+}
+
+; 定义回调函数
+EnvironmentCreatedHandler(hr, env) {
+    if (hr != 0) {
+        ; 解析错误代码
+        errorMsg := "WebView2 环境创建失败。`n"
+        errorMsg .= "错误代码: " Format("0x{:08X}", hr) " "
+        
+        switch hr {
+            case 0x80004003: errorMsg .= "(E_POINTER) - 无效指针"
+            case 0x80070057: errorMsg .= "(E_INVALIDARG) - 无效参数"
+            case 0x80070002: errorMsg .= "(ERROR_FILE_NOT_FOUND) - 找不到文件"
+            case 0x8007007E: errorMsg .= "(ERROR_MOD_NOT_FOUND) - 找不到模块"
+            case 0x80070005: errorMsg .= "(E_ACCESSDENIED) - 访问被拒绝"
+            default: errorMsg .= "(未知错误)"
+        }
+        
+        MsgBox(errorMsg, "错误", "Icon!")
+        CallbackFree(A_EventInfo)  ; 释放回调
+        return
+    }
+
+    ; 成功获取 env 后的操作
+    global webview2Env := env  ; 保存环境引用
+    
+    ; 输出调试信息
+    ToolTip("WebView2 环境创建成功！")
+    SetTimer () => ToolTip(), -2000
+    
+    ; 输出详细信息到调试窗口
+    OutputDebug("WebView2 环境创建成功，env指针: " Format("0x{:p}", env))
+    
+    ; 可以在这里初始化其他WebView2相关组件
+    
+    ; 注意：不要在此释放资源，因为我们需要保持环境引用
+    ; CallbackFree 和 FreeLibrary 由应用关闭时处理
 }
 
 ; 显示片段选择器界面
@@ -142,14 +430,14 @@ ShowSnippetSelector() {
         }
         
         ; 创建环境
-        hr := DllCall(CreateCoreWebView2Environment, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr*", &env := 0)
+        hr := DllCall(CreateCoreWebView2Environment, "Ptr", 0, "Ptr", selectorWindow.Hwnd, "Ptr*", &controller := 0)
         if (hr != 0) {
             MsgBox("创建 WebView2 环境失败。错误代码: " Format("0x{:08X}", hr), "错误", "Icon!")
             return
         }
         
         ; 创建 WebView2 控件
-        hr := DllCall(env.vt[6], "Ptr", env, "Ptr", selectorWindow.Hwnd, "Ptr*", &controller := 0)
+        hr := DllCall(controller.vt[6], "Ptr", controller, "Ptr", selectorWindow.Hwnd, "Ptr*", &webview := 0)
         if (hr != 0) {
             MsgBox("创建 WebView2 控件失败。错误代码: " Format("0x{:08X}", hr), "错误", "Icon!")
             return
@@ -166,7 +454,7 @@ ShowSnippetSelector() {
         DllCall(webview.vt[7], "Ptr", webview, "WStr", "https://text-snippet-manager.vercel.app/selector.html")
         
         ; 保存对象到窗口
-        selectorWindow.env := env
+        selectorWindow.env := controller
         selectorWindow.controller := controller
         selectorWindow.webview := webview
     } catch Error as e {
@@ -222,14 +510,14 @@ ShowManagerPanel() {
         }
         
         ; 创建环境
-        hr := DllCall(CreateCoreWebView2Environment, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr*", &env := 0)
+        hr := DllCall(CreateCoreWebView2Environment, "Ptr", 0, "Ptr", managerWindow.Hwnd, "Ptr*", &controller := 0)
         if (hr != 0) {
             MsgBox("创建 WebView2 环境失败。错误代码: " Format("0x{:08X}", hr), "错误", "Icon!")
             return
         }
         
         ; 创建 WebView2 控件
-        hr := DllCall(env.vt[6], "Ptr", env, "Ptr", managerWindow.Hwnd, "Ptr*", &controller := 0)
+        hr := DllCall(controller.vt[6], "Ptr", controller, "Ptr", managerWindow.Hwnd, "Ptr*", &webview := 0)
         if (hr != 0) {
             MsgBox("创建 WebView2 控件失败。错误代码: " Format("0x{:08X}", hr), "错误", "Icon!")
             return
@@ -246,7 +534,7 @@ ShowManagerPanel() {
         DllCall(webview.vt[7], "Ptr", webview, "WStr", "https://text-snippet-manager.vercel.app/ui/index.html")
         
         ; 保存对象到窗口
-        managerWindow.env := env
+        managerWindow.env := controller
         managerWindow.controller := controller
         managerWindow.webview := webview
     } catch Error as e {
@@ -477,4 +765,45 @@ CopySnippetToClipboard(text) {
 CenterWindow(guiObj) {
     guiObj.GetPos(&x, &y, &width, &height)
     guiObj.Move((A_ScreenWidth - width) / 2, (A_ScreenHeight - height) / 2)
+}
+
+; 注册WebView2组件（需要管理员权限）
+RegisterWebView2Components() {
+    if !A_IsAdmin {
+        MsgBox("注册组件需要管理员权限，请以管理员身份运行本程序。", "权限不足", "Icon!")
+        return false
+    }
+    
+    ; 尝试注册WebView2Loader.dll
+    dllPath := ""
+    possiblePaths := [
+        A_ScriptDir "\WebView2Loader.dll",
+        A_ScriptDir "\src\lib\WebView2Loader.dll",
+        A_WinDir "\System32\WebView2Loader.dll",
+        A_WinDir "\SysWOW64\WebView2Loader.dll"
+    ]
+    
+    for path in possiblePaths {
+        if FileExist(path) {
+            dllPath := path
+            break
+        }
+    }
+    
+    if !dllPath {
+        MsgBox("找不到WebView2Loader.dll，无法注册组件。", "错误", "Icon!")
+        return false
+    }
+    
+    ; 使用regsvr32注册DLL
+    RunWait(A_ComSpec ' /c regsvr32 /s "' dllPath '"', , "Hide")
+    
+    ; 检查是否注册成功
+    if A_LastError {
+        MsgBox("注册组件失败，错误代码: " A_LastError, "错误", "Icon!")
+        return false
+    }
+    
+    MsgBox("WebView2组件注册成功！", "成功", "Icon!")
+    return true
 } 
