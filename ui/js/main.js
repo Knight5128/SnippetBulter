@@ -4,12 +4,13 @@
 let snippetsData = {};
 let settings = {};
 let currentGroup = null;
-let deleteCallback = null;
+let isRecordingHotkey = false;
+let confirmCallback = null;
 
-// 页面加载完成后初始化
-document.addEventListener('DOMContentLoaded', function() {
-    // 初始化Tab切换
-    initTabNavigation();
+// 文档就绪后初始化
+$(document).ready(function() {
+    // 初始化
+    initialize();
     
     // 初始化模态框
     initModals();
@@ -17,97 +18,115 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化按钮事件
     initButtons();
     
-    // 从AHK获取数据
-    requestDataFromAHK();
+    // 初始化拖放排序
+    initSortable();
 });
 
-// 初始化标签页导航
-function initTabNavigation() {
-    const navItems = document.querySelectorAll('.nav-item');
+// 初始化函数
+function initialize() {
+    // 请求数据
+    requestDataFromAHK();
     
-    navItems.forEach(item => {
-        item.addEventListener('click', function() {
-            // 移除所有导航项的active类
-            navItems.forEach(i => i.classList.remove('active'));
-            
-            // 移除所有内容页的active类
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            
-            // 添加当前项和对应内容页的active类
-            this.classList.add('active');
-            const tabId = this.dataset.tab;
-            document.getElementById(tabId).classList.add('active');
-        });
-    });
+    // 如果5秒后仍未收到数据，显示错误
+    setTimeout(function() {
+        if ($.isEmptyObject(snippetsData)) {
+            showError('无法从应用程序获取数据，请重新启动应用');
+        }
+    }, 5000);
 }
 
 // 初始化模态框
 function initModals() {
-    // 关闭分组模态框
-    document.getElementById('closeGroupModal')?.addEventListener('click', () => {
-        document.getElementById('groupModal').classList.remove('active');
-    });
-    document.getElementById('cancelGroupBtn')?.addEventListener('click', () => {
-        document.getElementById('groupModal').classList.remove('active');
-    });
+    // 片段模态框
+    $('#save-snippet-btn').on('click', saveSnippet);
     
-    // 关闭片段模态框
-    document.getElementById('closeSnippetModal')?.addEventListener('click', () => {
-        document.getElementById('snippetModal').classList.remove('active');
-    });
-    document.getElementById('cancelSnippetBtn')?.addEventListener('click', () => {
-        document.getElementById('snippetModal').classList.remove('active');
-    });
+    // 分组模态框
+    $('#save-group-btn').on('click', saveGroup);
     
-    // 关闭确认删除模态框
-    document.getElementById('closeConfirmModal')?.addEventListener('click', () => {
-        document.getElementById('confirmModal').classList.remove('active');
-    });
-    document.getElementById('cancelDeleteBtn')?.addEventListener('click', () => {
-        document.getElementById('confirmModal').classList.remove('active');
-    });
-    
-    // 保存分组
-    document.getElementById('saveGroupBtn')?.addEventListener('click', saveGroup);
-    
-    // 保存片段
-    document.getElementById('saveSnippetBtn')?.addEventListener('click', saveSnippet);
-    
-    // 确认删除
-    document.getElementById('confirmDeleteBtn')?.addEventListener('click', () => {
-        if (typeof deleteCallback === 'function') {
-            deleteCallback();
+    // 确认模态框
+    $('#confirm-action-btn').on('click', function() {
+        if (typeof confirmCallback === 'function') {
+            confirmCallback();
         }
-        document.getElementById('confirmModal').classList.remove('active');
+        $('#confirm-modal').modal('hide');
     });
 }
 
 // 初始化按钮事件
 function initButtons() {
     // 添加分组按钮
-    document.getElementById('addGroupBtn')?.addEventListener('click', () => {
-        document.getElementById('groupModalTitle').textContent = '添加分组';
-        document.getElementById('groupNameInput').value = '';
-        document.getElementById('oldGroupName').value = '';
-        document.getElementById('groupModal').classList.add('active');
+    $('#add-group-btn').on('click', function() {
+        $('#group-modal-title').text('添加分组');
+        $('#group-name').val('');
+        $('#old-group-name').val('');
+        $('#group-modal').modal('show');
     });
     
     // 添加片段按钮
-    document.getElementById('addSnippetBtn')?.addEventListener('click', () => {
+    $('#add-snippet-btn').on('click', function() {
         if (!currentGroup) return;
         
-        document.getElementById('snippetModalTitle').textContent = '添加片段';
-        document.getElementById('snippetNameInput').value = '';
-        document.getElementById('snippetContentInput').value = '';
-        document.getElementById('oldSnippetName').value = '';
-        document.getElementById('snippetModal').classList.add('active');
+        $('#snippet-modal-title').text('添加片段');
+        $('#snippet-name').val('');
+        $('#snippet-content').val('');
+        $('#snippet-id').val('');
+        $('#snippet-modal').modal('show');
     });
     
-    // 保存设置按钮
-    document.getElementById('saveSettingsBtn')?.addEventListener('click', saveSettings);
+    // 重命名分组按钮
+    $('#rename-group-btn').on('click', function() {
+        if (!currentGroup) return;
+        
+        $('#group-modal-title').text('重命名分组');
+        $('#group-name').val(currentGroup);
+        $('#old-group-name').val(currentGroup);
+        $('#group-modal').modal('show');
+    });
     
-    // 保存脚本设置按钮
-    document.getElementById('saveScriptsBtn')?.addEventListener('click', saveScriptSettings);
+    // 删除分组按钮
+    $('#delete-group-btn').on('click', function() {
+        if (!currentGroup) return;
+        
+        $('#confirm-modal-title').text('删除分组');
+        $('#confirm-modal-body').text(`确定要删除分组 "${currentGroup}" 及其所有片段吗？此操作无法撤销。`);
+        confirmCallback = () => deleteGroup(currentGroup);
+        $('#confirm-modal').modal('show');
+    });
+    
+    // 录制热键按钮
+    $('#record-hotkey-btn').on('click', toggleHotkeyRecording);
+    
+    // 保存设置按钮
+    $('#save-settings-btn').on('click', saveSettings);
+    
+    // 导出数据按钮
+    $('#export-data-btn').on('click', exportData);
+    
+    // 导入数据按钮
+    $('#import-data-btn').on('click', importData);
+}
+
+// 初始化拖放排序
+function initSortable() {
+    // 初始化分组排序
+    $('.groups-sortable').sortable({
+        items: '.list-group-item',
+        placeholder: 'list-group-item-placeholder',
+        update: function(event, ui) {
+            // 保存新的分组顺序
+            saveGroupsOrder();
+        }
+    });
+    
+    // 初始化片段排序
+    $('.snippets-sortable').sortable({
+        items: '.snippet-card',
+        placeholder: 'snippet-card-placeholder',
+        update: function(event, ui) {
+            // 保存新的片段顺序
+            saveSnippetsOrder(currentGroup);
+        }
+    });
 }
 
 // 从AHK请求数据
@@ -119,114 +138,96 @@ function requestDataFromAHK() {
     } catch (error) {
         console.error('无法发送消息到AHK:', error);
         showError('无法与主程序通信，请重新启动应用');
+        
+        // 开发时使用的测试数据
+        useDummyData();
     }
+}
+
+// 使用测试数据(开发时使用)
+function useDummyData() {
+    snippetsData = {
+        "常用": {
+            "问候语": "您好，感谢您的来信。",
+            "签名": "此致,\n敬礼\n张三"
+        },
+        "代码": {
+            "HTML模板": "<!DOCTYPE html>\n<html>\n<head>\n  <title>标题</title>\n</head>\n<body>\n  <h1>Hello World</h1>\n</body>\n</html>",
+            "AHK函数": "MyFunction() {\n  MsgBox(\"Hello World\")\n  return true\n}"
+        },
+        "邮件模板": {
+            "会议邀请": "主题：项目讨论会议邀请\n\n尊敬的团队成员：\n\n我们将于本周五下午2点在会议室A举行项目进度讨论会，请准时参加。",
+            "工作汇报": "主题：周工作汇报\n\n尊敬的领导：\n\n本周我主要完成了以下工作：\n1. 项目A的需求分析\n2. 项目B的测试计划编写\n3. 与客户C进行了沟通\n\n下周计划：\n1. 完成项目A的设计文档\n2. 开始项目B的单元测试\n\n此致"
+        }
+    };
+    
+    settings = {
+        "hotkey": "^+Space",
+        "autoHide": true,
+        "alwaysOnTop": true,
+        "scripts": {
+            "easy-window-dragging": false,
+            "on-screen-keyboard": false
+        }
+    };
+    
+    // 更新界面
+    updateUI();
 }
 
 // 接收来自AHK的数据
 window.receiveData = function(data) {
-    try {
-        snippetsData = data.snippets || {};
-        settings = data.settings || {};
-        
-        // 更新界面
-        renderGroups();
-        updateSettingsForm();
-        updateScriptsForm();
-    } catch (error) {
-        console.error('处理数据时出错:', error);
-        showError('处理数据时出错');
-    }
+    snippetsData = data.snippets || {};
+    settings = data.settings || {};
+    
+    // 更新界面
+    updateUI();
 };
+
+// 更新界面
+function updateUI() {
+    // 渲染分组列表
+    renderGroups();
+    
+    // 更新设置表单
+    updateSettingsForm();
+}
 
 // 渲染分组列表
 function renderGroups() {
-    const groupList = document.getElementById('groupList');
-    if (!groupList) return;
+    const $groupsList = $('#groups-list');
+    $groupsList.empty();
     
-    groupList.innerHTML = '';
+    // 如果没有分组，显示提示
+    if (Object.keys(snippetsData).length === 0) {
+        $groupsList.html('<div class="text-center p-3 text-muted">没有分组，请点击添加分组按钮创建</div>');
+        return;
+    }
     
-    for (const groupName in snippetsData) {
-        const li = document.createElement('li');
-        li.className = 'group-item';
-        if (currentGroup === groupName) {
-            li.classList.add('active');
+    // 添加所有分组
+    $.each(snippetsData, function(groupName, group) {
+        const $groupItem = $('<a>')
+            .addClass('list-group-item list-group-item-action d-flex justify-content-between align-items-center')
+            .attr('href', '#')
+            .attr('data-group', groupName)
+            .html(`
+                ${groupName}
+                <span class="badge bg-primary rounded-pill">${Object.keys(group).length}</span>
+            `);
+            
+        // 如果是当前选中的分组，添加active类
+        if (groupName === currentGroup) {
+            $groupItem.addClass('active');
         }
-        li.textContent = groupName;
-        li.dataset.group = groupName;
-        li.addEventListener('click', () => selectGroup(groupName));
         
-        // 添加右键菜单事件
-        li.addEventListener('contextmenu', function(e) {
+        // 绑定点击事件
+        $groupItem.on('click', function(e) {
             e.preventDefault();
-            showGroupContextMenu(groupName, e.clientX, e.clientY);
+            selectGroup(groupName);
         });
         
-        groupList.appendChild(li);
-    }
-    
-    // 如果没有分组
-    if (Object.keys(snippetsData).length === 0) {
-        const li = document.createElement('li');
-        li.className = 'group-item';
-        li.textContent = '没有分组，请点击添加按钮创建';
-        groupList.appendChild(li);
-    }
-}
-
-// 显示分组右键菜单
-function showGroupContextMenu(groupName, x, y) {
-    // 创建临时的右键菜单
-    let contextMenu = document.createElement('div');
-    contextMenu.className = 'context-menu';
-    contextMenu.style.position = 'fixed';
-    contextMenu.style.left = x + 'px';
-    contextMenu.style.top = y + 'px';
-    contextMenu.style.backgroundColor = 'white';
-    contextMenu.style.border = '1px solid #ddd';
-    contextMenu.style.borderRadius = '4px';
-    contextMenu.style.padding = '5px 0';
-    contextMenu.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
-    contextMenu.style.zIndex = '1000';
-    
-    // 添加菜单项
-    let renameItem = document.createElement('div');
-    renameItem.style.padding = '8px 15px';
-    renameItem.style.cursor = 'pointer';
-    renameItem.textContent = '重命名';
-    renameItem.addEventListener('mouseenter', () => renameItem.style.backgroundColor = '#f5f5f5');
-    renameItem.addEventListener('mouseleave', () => renameItem.style.backgroundColor = 'transparent');
-    renameItem.addEventListener('click', () => {
-        document.body.removeChild(contextMenu);
-        editGroup(groupName);
+        $groupsList.append($groupItem);
     });
-    
-    let deleteItem = document.createElement('div');
-    deleteItem.style.padding = '8px 15px';
-    deleteItem.style.cursor = 'pointer';
-    deleteItem.textContent = '删除';
-    deleteItem.addEventListener('mouseenter', () => deleteItem.style.backgroundColor = '#f5f5f5');
-    deleteItem.addEventListener('mouseleave', () => deleteItem.style.backgroundColor = 'transparent');
-    deleteItem.addEventListener('click', () => {
-        document.body.removeChild(contextMenu);
-        confirmDeleteGroup(groupName);
-    });
-    
-    contextMenu.appendChild(renameItem);
-    contextMenu.appendChild(deleteItem);
-    
-    // 添加到文档并设置自动关闭
-    document.body.appendChild(contextMenu);
-    
-    // 点击其他地方关闭菜单
-    setTimeout(() => {
-        const closeMenu = function() {
-            if (document.body.contains(contextMenu)) {
-                document.body.removeChild(contextMenu);
-                document.removeEventListener('click', closeMenu);
-            }
-        };
-        document.addEventListener('click', closeMenu);
-    }, 0);
 }
 
 // 选择分组
@@ -234,25 +235,14 @@ function selectGroup(groupName) {
     currentGroup = groupName;
     
     // 更新分组列表样式
-    document.querySelectorAll('.group-item').forEach(item => {
-        if (item.dataset.group === groupName) {
-            item.classList.add('active');
-        } else {
-            item.classList.remove('active');
-        }
-    });
+    $('.list-group-item').removeClass('active');
+    $(`.list-group-item[data-group="${groupName}"]`).addClass('active');
     
     // 更新片段列表标题
-    const titleElement = document.getElementById('currentGroupTitle');
-    if (titleElement) {
-        titleElement.textContent = groupName;
-    }
+    $('#current-group-name').text(groupName);
     
     // 启用添加片段按钮
-    const addButton = document.getElementById('addSnippetBtn');
-    if (addButton) {
-        addButton.disabled = false;
-    }
+    $('#add-snippet-btn').prop('disabled', false);
     
     // 渲染片段列表
     renderSnippets(groupName);
@@ -260,119 +250,176 @@ function selectGroup(groupName) {
 
 // 渲染片段列表
 function renderSnippets(groupName) {
-    const snippetsList = document.getElementById('snippetsList');
-    if (!snippetsList) return;
-    
-    snippetsList.innerHTML = '';
+    const $snippetsList = $('#snippets-list');
+    $snippetsList.empty();
     
     if (!snippetsData[groupName]) return;
     
     const group = snippetsData[groupName];
     const snippetNames = Object.keys(group);
     
+    // 如果分组中没有片段，显示提示
     if (snippetNames.length === 0) {
-        const div = document.createElement('div');
-        div.className = 'snippet-item';
-        div.textContent = '该分组中没有片段，请点击添加片段按钮创建';
-        snippetsList.appendChild(div);
+        $snippetsList.html('<div class="text-center p-5 text-muted">该分组中没有片段，请点击添加片段按钮创建</div>');
         return;
     }
     
-    for (const snippetName of snippetNames) {
-        const snippetContent = group[snippetName];
+    // 添加所有片段
+    $.each(group, function(snippetName, snippetContent) {
+        // 创建片段卡片
+        const $snippetCard = $('<div>')
+            .addClass('snippet-card mb-3')
+            .attr('data-name', snippetName);
+            
+        // 创建片段标题和操作按钮
+        const $cardHeader = $('<div>')
+            .addClass('d-flex justify-content-between align-items-center mb-2');
+            
+        const $snippetTitle = $('<h5>')
+            .addClass('mb-0 text-primary')
+            .text(snippetName);
+            
+        const $actionButtons = $('<div>')
+            .addClass('btn-group btn-group-sm');
+            
+        // 编辑按钮
+        const $editBtn = $('<button>')
+            .addClass('btn btn-outline-secondary')
+            .html('<i class="bi bi-pencil"></i>')
+            .attr('title', '编辑')
+            .on('click', function() {
+                editSnippet(groupName, snippetName);
+            });
+            
+        // 复制按钮
+        const $copyBtn = $('<button>')
+            .addClass('btn btn-outline-primary')
+            .html('<i class="bi bi-clipboard"></i>')
+            .attr('title', '复制')
+            .on('click', function() {
+                copySnippet(snippetContent);
+            });
+            
+        // 删除按钮
+        const $deleteBtn = $('<button>')
+            .addClass('btn btn-outline-danger')
+            .html('<i class="bi bi-trash"></i>')
+            .attr('title', '删除')
+            .on('click', function() {
+                confirmDeleteSnippet(groupName, snippetName);
+            });
+            
+        $actionButtons.append($editBtn, $copyBtn, $deleteBtn);
+        $cardHeader.append($snippetTitle, $actionButtons);
         
-        const snippetDiv = document.createElement('div');
-        snippetDiv.className = 'snippet-item';
+        // 创建片段内容
+        const $snippetContent = $('<div>')
+            .addClass('snippet-content')
+            .text(snippetContent);
+            
+        // 组装片段卡片
+        $snippetCard.append($cardHeader, $snippetContent);
+        $snippetsList.append($snippetCard);
+    });
+}
+
+// 编辑片段
+function editSnippet(groupName, snippetName) {
+    $('#snippet-modal-title').text('编辑片段');
+    $('#snippet-name').val(snippetName);
+    $('#snippet-content').val(snippetsData[groupName][snippetName]);
+    $('#snippet-id').val(snippetName);
+    $('#snippet-modal').modal('show');
+}
+
+// 确认删除片段
+function confirmDeleteSnippet(groupName, snippetName) {
+    $('#confirm-modal-title').text('删除片段');
+    $('#confirm-modal-body').text(`确定要删除片段 "${snippetName}" 吗？此操作无法撤销。`);
+    confirmCallback = () => deleteSnippet(groupName, snippetName);
+    $('#confirm-modal').modal('show');
+}
+
+// 删除片段
+function deleteSnippet(groupName, snippetName) {
+    try {
+        window.chrome.webview.postMessage({
+            action: 'deleteSnippet',
+            group: groupName,
+            name: snippetName
+        });
         
-        const headerDiv = document.createElement('div');
-        headerDiv.className = 'snippet-header';
+        // 从本地数据中删除
+        delete snippetsData[groupName][snippetName];
         
-        const titleDiv = document.createElement('div');
-        titleDiv.className = 'snippet-title';
-        titleDiv.textContent = snippetName;
-        
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'snippet-actions';
-        
-        const editBtn = document.createElement('button');
-        editBtn.className = 'btn';
-        editBtn.textContent = '编辑';
-        editBtn.addEventListener('click', () => editSnippet(groupName, snippetName));
-        
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'btn';
-        copyBtn.textContent = '复制';
-        copyBtn.addEventListener('click', () => copySnippet(snippetContent));
-        
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'btn btn-danger';
-        deleteBtn.textContent = '删除';
-        deleteBtn.addEventListener('click', () => confirmDeleteSnippet(groupName, snippetName));
-        
-        actionsDiv.appendChild(editBtn);
-        actionsDiv.appendChild(copyBtn);
-        actionsDiv.appendChild(deleteBtn);
-        
-        headerDiv.appendChild(titleDiv);
-        headerDiv.appendChild(actionsDiv);
-        
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'snippet-content';
-        contentDiv.textContent = snippetContent;
-        
-        snippetDiv.appendChild(headerDiv);
-        snippetDiv.appendChild(contentDiv);
-        
-        snippetsList.appendChild(snippetDiv);
+        // 更新界面
+        renderSnippets(groupName);
+    } catch (error) {
+        console.error('删除片段时出错:', error);
+        showError('无法删除片段，请重新启动应用');
     }
 }
 
-// 编辑分组
-function editGroup(groupName) {
-    document.getElementById('groupModalTitle').textContent = '编辑分组';
-    document.getElementById('groupNameInput').value = groupName;
-    document.getElementById('oldGroupName').value = groupName;
-    document.getElementById('groupModal').classList.add('active');
-}
-
-// 确认删除分组
-function confirmDeleteGroup(groupName) {
-    document.getElementById('confirmMessage').textContent = `您确定要删除分组 "${groupName}" 及其所有片段吗？此操作无法撤销。`;
-    deleteCallback = () => deleteGroup(groupName);
-    document.getElementById('confirmModal').classList.add('active');
-}
-
-// 删除分组
-function deleteGroup(groupName) {
-    try {
-        window.chrome.webview.postMessage({
-            action: 'deleteGroup',
-            name: groupName
-        });
-        
-        // 如果删除的是当前选中的分组，清除当前选中
-        if (currentGroup === groupName) {
-            currentGroup = null;
-            document.getElementById('currentGroupTitle').textContent = '选择一个分组';
-            document.getElementById('addSnippetBtn').disabled = true;
-            document.getElementById('snippetsList').innerHTML = '<div class="snippet-item">请选择一个分组以查看片段</div>';
+// 保存片段
+function saveSnippet() {
+    const snippetName = $('#snippet-name').val().trim();
+    const snippetContent = $('#snippet-content').val();
+    const oldName = $('#snippet-id').val().trim();
+    
+    if (!snippetName) {
+        alert('片段名称不能为空!');
+        return;
+    }
+    
+    if (!currentGroup) {
+        alert('请先选择一个分组!');
+        return;
+    }
+    
+    // 如果是编辑现有片段且名称已更改
+    if (oldName && oldName !== snippetName) {
+        // 如果新名称已存在
+        if (snippetsData[currentGroup][snippetName]) {
+            if (!confirm('片段名称已存在，是否覆盖?')) {
+                return;
+            }
         }
         
-        // 从本地数据中删除
-        delete snippetsData[groupName];
+        // 删除旧片段
+        delete snippetsData[currentGroup][oldName];
+    } 
+    // 添加新片段但名称已存在
+    else if (!oldName && snippetsData[currentGroup][snippetName]) {
+        if (!confirm('片段名称已存在，是否覆盖?')) {
+            return;
+        }
+    }
+    
+    try {
+        // 保存片段
+        window.chrome.webview.postMessage({
+            action: 'addSnippet',
+            group: currentGroup,
+            name: snippetName,
+            content: snippetContent
+        });
         
-        // 更新界面
-        renderGroups();
+        // 更新本地数据
+        snippetsData[currentGroup][snippetName] = snippetContent;
+        
+        // 关闭模态框并更新界面
+        $('#snippet-modal').modal('hide');
+        renderSnippets(currentGroup);
     } catch (error) {
-        console.error('删除分组时出错:', error);
-        showError('删除分组失败');
+        console.error('保存片段时出错:', error);
+        showError('无法保存片段，请重新启动应用');
     }
 }
 
 // 保存分组
 function saveGroup() {
-    const groupName = document.getElementById('groupNameInput').value.trim();
-    const oldName = document.getElementById('oldGroupName').value.trim();
+    const groupName = $('#group-name').val().trim();
+    const oldName = $('#old-group-name').val().trim();
     
     if (!groupName) {
         alert('分组名称不能为空!');
@@ -421,7 +468,7 @@ function saveGroup() {
         }
         
         // 关闭模态框并更新界面
-        document.getElementById('groupModal').classList.remove('active');
+        $('#group-modal').modal('hide');
         renderGroups();
         
         // 如果是新分组，自动选中它
@@ -430,97 +477,34 @@ function saveGroup() {
         }
     } catch (error) {
         console.error('保存分组时出错:', error);
-        showError('保存分组失败');
+        showError('无法保存分组，请重新启动应用');
     }
 }
 
-// 编辑片段
-function editSnippet(groupName, snippetName) {
-    document.getElementById('snippetModalTitle').textContent = '编辑片段';
-    document.getElementById('snippetNameInput').value = snippetName;
-    document.getElementById('snippetContentInput').value = snippetsData[groupName][snippetName];
-    document.getElementById('oldSnippetName').value = snippetName;
-    document.getElementById('snippetModal').classList.add('active');
-}
-
-// 确认删除片段
-function confirmDeleteSnippet(groupName, snippetName) {
-    document.getElementById('confirmMessage').textContent = `您确定要删除片段 "${snippetName}" 吗？此操作无法撤销。`;
-    deleteCallback = () => deleteSnippet(groupName, snippetName);
-    document.getElementById('confirmModal').classList.add('active');
-}
-
-// 删除片段
-function deleteSnippet(groupName, snippetName) {
+// 删除分组
+function deleteGroup(groupName) {
     try {
         window.chrome.webview.postMessage({
-            action: 'deleteSnippet',
-            group: groupName,
-            name: snippetName
+            action: 'deleteGroup',
+            name: groupName
         });
         
         // 从本地数据中删除
-        delete snippetsData[groupName][snippetName];
+        delete snippetsData[groupName];
         
-        // 更新界面
-        renderSnippets(groupName);
-    } catch (error) {
-        console.error('删除片段时出错:', error);
-        showError('删除片段失败');
-    }
-}
-
-// 保存片段
-function saveSnippet() {
-    const snippetName = document.getElementById('snippetNameInput').value.trim();
-    const snippetContent = document.getElementById('snippetContentInput').value;
-    const oldName = document.getElementById('oldSnippetName').value.trim();
-    
-    if (!snippetName) {
-        alert('片段名称不能为空!');
-        return;
-    }
-    
-    if (!currentGroup) {
-        alert('请先选择一个分组!');
-        return;
-    }
-    
-    try {
-        // 如果是编辑现有片段
-        if (oldName && oldName !== snippetName) {
-            // 如果新名称已存在
-            if (snippetsData[currentGroup][snippetName]) {
-                const confirm = window.confirm('片段名称已存在，是否覆盖?');
-                if (!confirm) return;
-            }
-            
-            // 删除旧片段
-            delete snippetsData[currentGroup][oldName];
-        } 
-        // 添加新片段但名称已存在
-        else if (!oldName && snippetsData[currentGroup][snippetName]) {
-            const confirm = window.confirm('片段名称已存在，是否覆盖?');
-            if (!confirm) return;
+        // 如果删除的是当前选中的分组，清除当前选中
+        if (currentGroup === groupName) {
+            currentGroup = null;
+            $('#current-group-name').text('请选择一个分组');
+            $('#add-snippet-btn').prop('disabled', true);
+            $('#snippets-list').html('<div class="text-center p-5 text-muted">请选择一个分组以查看片段</div>');
         }
         
-        // 保存片段
-        window.chrome.webview.postMessage({
-            action: 'addSnippet',
-            group: currentGroup,
-            name: snippetName,
-            content: snippetContent
-        });
-        
-        // 更新本地数据
-        snippetsData[currentGroup][snippetName] = snippetContent;
-        
-        // 关闭模态框并更新界面
-        document.getElementById('snippetModal').classList.remove('active');
-        renderSnippets(currentGroup);
+        // 更新界面
+        renderGroups();
     } catch (error) {
-        console.error('保存片段时出错:', error);
-        showError('保存片段失败');
+        console.error('删除分组时出错:', error);
+        showError('无法删除分组，请重新启动应用');
     }
 }
 
@@ -533,36 +517,80 @@ function copySnippet(content) {
         });
         
         // 提示已复制
-        alert('片段已复制到剪贴板!');
+        showToast('片段已复制到剪贴板!');
     } catch (error) {
         console.error('复制片段时出错:', error);
-        showError('复制片段失败');
+        showError('无法复制片段，请重新启动应用');
     }
 }
 
+// 切换热键录制状态
+function toggleHotkeyRecording() {
+    const $button = $('#record-hotkey-btn');
+    const $input = $('#hotkey-input');
+    
+    if (isRecordingHotkey) {
+        // 停止录制
+        $button.text('录制');
+        $button.removeClass('btn-danger').addClass('btn-outline-secondary');
+        $input.prop('placeholder', '点击录制热键组合');
+        isRecordingHotkey = false;
+        
+        // 通知AHK停止热键录制
+        try {
+            window.chrome.webview.postMessage({
+                action: 'stopRecordHotkey'
+            });
+        } catch (error) {
+            console.error('停止热键录制时出错:', error);
+        }
+    } else {
+        // 开始录制
+        $button.text('停止');
+        $button.removeClass('btn-outline-secondary').addClass('btn-danger');
+        $input.val('');
+        $input.prop('placeholder', '按下热键组合...');
+        isRecordingHotkey = true;
+        
+        // 通知AHK开始热键录制
+        try {
+            window.chrome.webview.postMessage({
+                action: 'startRecordHotkey'
+            });
+        } catch (error) {
+            console.error('开始热键录制时出错:', error);
+        }
+    }
+}
+
+// 接收热键录制结果(从AHK调用)
+window.setRecordedHotkey = function(hotkey) {
+    $('#hotkey-input').val(hotkey);
+    toggleHotkeyRecording(); // 停止录制状态
+};
+
 // 更新设置表单
 function updateSettingsForm() {
-    const hotkeyInput = document.getElementById('hotkeyInput');
-    if (hotkeyInput) {
-        hotkeyInput.value = settings.hotkey || '^+Space';
-    }
+    // 热键设置
+    $('#hotkey-input').val(settings.hotkey || '^+Space');
+    $('#current-hotkey').text(settings.hotkey || '^+Space');
     
-    const autoHideCheck = document.getElementById('autoHideCheck');
-    if (autoHideCheck) {
-        autoHideCheck.checked = settings.autoHide || false;
-    }
+    // 行为设置
+    $('#auto-hide-switch').prop('checked', settings.autoHide || false);
+    $('#always-on-top-switch').prop('checked', settings.alwaysOnTop || false);
     
-    const alwaysOnTopCheck = document.getElementById('alwaysOnTopCheck');
-    if (alwaysOnTopCheck) {
-        alwaysOnTopCheck.checked = settings.alwaysOnTop || true;
-    }
+    // 集成功能设置
+    $('#easy-dragging-switch').prop('checked', settings.scripts && settings.scripts['easy-window-dragging'] || false);
+    $('#on-screen-keyboard-switch').prop('checked', settings.scripts && settings.scripts['on-screen-keyboard'] || false);
 }
 
 // 保存设置
 function saveSettings() {
-    const hotkey = document.getElementById('hotkeyInput').value.trim();
-    const autoHide = document.getElementById('autoHideCheck').checked;
-    const alwaysOnTop = document.getElementById('alwaysOnTopCheck').checked;
+    const hotkey = $('#hotkey-input').val().trim();
+    const autoHide = $('#auto-hide-switch').prop('checked');
+    const alwaysOnTop = $('#always-on-top-switch').prop('checked');
+    const easyDragging = $('#easy-dragging-switch').prop('checked');
+    const onScreenKeyboard = $('#on-screen-keyboard-switch').prop('checked');
     
     if (!hotkey) {
         alert('快捷键不能为空!');
@@ -574,59 +602,275 @@ function saveSettings() {
         settings.hotkey = hotkey;
         settings.autoHide = autoHide;
         settings.alwaysOnTop = alwaysOnTop;
+        if (!settings.scripts) settings.scripts = {};
+        settings.scripts['easy-window-dragging'] = easyDragging;
+        settings.scripts['on-screen-keyboard'] = onScreenKeyboard;
         
         // 发送到AHK
         window.chrome.webview.postMessage({
             action: 'updateSettings',
-            hotkey: hotkey,
-            autoHide: autoHide,
-            alwaysOnTop: alwaysOnTop
+            settings: settings
         });
         
-        alert('设置已保存!');
-    } catch (error) {
-        console.error('保存设置时出错:', error);
-        showError('保存设置失败');
-    }
-}
-
-// 更新脚本设置表单
-function updateScriptsForm() {
-    // 这里需要从AHK获取脚本的启用状态，暂时默认为false
-    const easyDragCheck = document.getElementById('easyDragCheck');
-    if (easyDragCheck) {
-        easyDragCheck.checked = false;
-    }
-    
-    const keyboardCheck = document.getElementById('keyboardCheck');
-    if (keyboardCheck) {
-        keyboardCheck.checked = false;
-    }
-}
-
-// 保存脚本设置
-function saveScriptSettings() {
-    const easyDrag = document.getElementById('easyDragCheck').checked;
-    const keyboard = document.getElementById('keyboardCheck').checked;
-    
-    try {
-        // 发送到AHK
+        // 设置脚本状态
         window.chrome.webview.postMessage({
             action: 'toggleScript',
-            scripts: {
-                'easy-window-dragging': easyDrag,
-                'on-screen-keyboard': keyboard
-            }
+            name: 'easy-window-dragging',
+            enabled: easyDragging
         });
         
-        alert('脚本设置已保存!');
+        window.chrome.webview.postMessage({
+            action: 'toggleScript',
+            name: 'on-screen-keyboard',
+            enabled: onScreenKeyboard
+        });
+        
+        showToast('设置已保存!');
     } catch (error) {
-        console.error('保存脚本设置时出错:', error);
-        showError('保存脚本设置失败');
+        console.error('保存设置时出错:', error);
+        showError('无法保存设置，请重新启动应用');
     }
+}
+
+// 保存分组顺序
+function saveGroupsOrder() {
+    // 获取新的顺序
+    const newOrder = {};
+    $('.list-group-item').each(function() {
+        const groupName = $(this).data('group');
+        if (groupName && snippetsData[groupName]) {
+            newOrder[groupName] = snippetsData[groupName];
+        }
+    });
+    
+    // 如果有变化才保存
+    if (Object.keys(newOrder).length > 0) {
+        snippetsData = newOrder;
+        
+        try {
+            window.chrome.webview.postMessage({
+                action: 'saveData',
+                snippets: snippetsData
+            });
+        } catch (error) {
+            console.error('保存分组顺序时出错:', error);
+        }
+    }
+}
+
+// 保存片段顺序
+function saveSnippetsOrder(groupName) {
+    if (!groupName || !snippetsData[groupName]) return;
+    
+    // 获取新的顺序
+    const newOrder = {};
+    $('.snippet-card').each(function() {
+        const snippetName = $(this).data('name');
+        if (snippetName && snippetsData[groupName][snippetName]) {
+            newOrder[snippetName] = snippetsData[groupName][snippetName];
+        }
+    });
+    
+    // 如果有变化才保存
+    if (Object.keys(newOrder).length > 0) {
+        snippetsData[groupName] = newOrder;
+        
+        try {
+            window.chrome.webview.postMessage({
+                action: 'saveData',
+                snippets: snippetsData
+            });
+        } catch (error) {
+            console.error('保存片段顺序时出错:', error);
+        }
+    }
+}
+
+// 导出数据
+function exportData() {
+    try {
+        const dataStr = JSON.stringify({
+            snippets: snippetsData,
+            settings: settings
+        }, null, 2);
+        
+        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+        
+        const exportFileDefaultName = 'snippets-backup.json';
+        
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+    } catch (error) {
+        console.error('导出数据时出错:', error);
+        showError('无法导出数据，请重新启动应用');
+    }
+}
+
+// 导入数据
+function importData() {
+    // 创建一个隐藏的文件输入框
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.json';
+    fileInput.style.display = 'none';
+    
+    fileInput.onchange = function() {
+        if (!fileInput.files || !fileInput.files[0]) return;
+        
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                
+                if (!data.snippets) {
+                    alert('无效的数据文件!');
+                    return;
+                }
+                
+                // 确认导入
+                if (confirm('导入将覆盖当前所有数据，是否继续?')) {
+                    snippetsData = data.snippets;
+                    
+                    // 可选：也导入设置
+                    if (data.settings) {
+                        settings = data.settings;
+                    }
+                    
+                    // 保存到AHK
+                    window.chrome.webview.postMessage({
+                        action: 'saveData',
+                        snippets: snippetsData,
+                        settings: settings
+                    });
+                    
+                    // 更新界面
+                    updateUI();
+                    
+                    showToast('数据导入成功!');
+                }
+            } catch (error) {
+                console.error('解析导入数据时出错:', error);
+                alert('无效的数据文件格式!');
+            }
+        };
+        
+        reader.readAsText(file);
+    };
+    
+    // 触发文件选择对话框
+    document.body.appendChild(fileInput);
+    fileInput.click();
+    document.body.removeChild(fileInput);
 }
 
 // 显示错误信息
 function showError(message) {
-    alert('错误: ' + message);
-} 
+    alert(message);
+}
+
+// 显示提示消息
+function showToast(message) {
+    // 创建一个临时的toast
+    const $toast = $(`
+        <div class="toast align-items-center text-white bg-success border-0 position-fixed bottom-0 end-0 m-3" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    `);
+    
+    $('body').append($toast);
+    
+    const toast = new bootstrap.Toast($toast, {
+        delay: 3000
+    });
+    
+    toast.show();
+    
+    // 自动移除元素
+    $toast.on('hidden.bs.toast', function() {
+        $(this).remove();
+    });
+}
+
+// 全局快捷键设置
+document.addEventListener('DOMContentLoaded', function() {
+    const enableHotkeyCheckbox = document.getElementById('enableGlobalHotkey');
+    const hotkeySettings = document.querySelector('.hotkey-settings');
+    const hotkeyInput = document.getElementById('globalHotkeyInput');
+    const saveHotkeyBtn = document.getElementById('saveHotkey');
+    
+    // 从本地存储加载设置
+    const savedHotkey = localStorage.getItem('globalHotkey');
+    const isHotkeyEnabled = localStorage.getItem('hotkeyEnabled') === 'true';
+    
+    enableHotkeyCheckbox.checked = isHotkeyEnabled;
+    hotkeySettings.style.display = isHotkeyEnabled ? 'flex' : 'none';
+    if (savedHotkey) {
+        hotkeyInput.value = savedHotkey;
+    }
+    
+    // 处理启用/禁用快捷键
+    enableHotkeyCheckbox.addEventListener('change', function() {
+        hotkeySettings.style.display = this.checked ? 'flex' : 'none';
+        localStorage.setItem('hotkeyEnabled', this.checked);
+        
+        // 通知后端
+        window.chrome.webview.postMessage({
+            type: 'toggleGlobalHotkey',
+            enabled: this.checked,
+            hotkey: hotkeyInput.value
+        });
+    });
+    
+    // 记录按键组合
+    let currentKeys = new Set();
+    hotkeyInput.addEventListener('keydown', function(e) {
+        e.preventDefault();
+        
+        // 记录当前按下的修饰键
+        if (e.key === 'Control' || e.key === 'Alt' || e.key === 'Shift') {
+            currentKeys.add(e.key);
+        } else {
+            // 如果按下了其他键，组合所有当前按下的键
+            let hotkeyStr = '';
+            if (currentKeys.has('Control')) hotkeyStr += '^';
+            if (currentKeys.has('Alt')) hotkeyStr += '!';
+            if (currentKeys.has('Shift')) hotkeyStr += '+';
+            hotkeyStr += e.key.toUpperCase();
+            
+            hotkeyInput.value = hotkeyStr;
+        }
+    });
+    
+    // 清除按键记录
+    hotkeyInput.addEventListener('keyup', function(e) {
+        if (e.key === 'Control' || e.key === 'Alt' || e.key === 'Shift') {
+            currentKeys.delete(e.key);
+        }
+    });
+    
+    // 保存快捷键
+    saveHotkeyBtn.addEventListener('click', function() {
+        const hotkey = hotkeyInput.value;
+        if (!hotkey) {
+            alert('请先设置快捷键');
+            return;
+        }
+        
+        localStorage.setItem('globalHotkey', hotkey);
+        
+        // 通知后端
+        window.chrome.webview.postMessage({
+            type: 'setGlobalHotkey',
+            hotkey: hotkey
+        });
+    });
+}); 

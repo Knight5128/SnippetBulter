@@ -85,7 +85,7 @@ SaveSnippets() {
         SetTimer () => ToolTip(), -2000
         return true
     } catch Error as e {
-        MsgBox("保存片段数据时出错: " e.Message, "错误", "Icon!")
+        ;MsgBox("保存片段数据时出错: " e.Message, "错误", "Icon!")
         return false
     }
 }
@@ -120,6 +120,8 @@ SaveSettingsToFile() {
             settings["autoHide"] := false
         if !settings.Has("alwaysOnTop")
             settings["alwaysOnTop"] := true
+        if !settings.Has("scripts")
+            settings["scripts"] := Map()
             
         ; 将设置转换为JSON并写入文件
         jsonStr := Jxon_Dump(settings, 4)
@@ -128,7 +130,7 @@ SaveSettingsToFile() {
         file.Close()
         return true
     } catch Error as e {
-        MsgBox("保存设置时出错: " e.Message, "错误", "Icon!")
+        ;MsgBox("保存设置时出错: " e.Message, "错误", "Icon!")
         return false
     }
 }

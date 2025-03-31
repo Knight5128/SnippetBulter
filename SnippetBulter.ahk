@@ -11,6 +11,9 @@
 ; 包含JSON处理库
 #Include %A_ScriptDir%\src\lib\Jxon.ahk
 
+; 包含WebView2控件库
+#Include %A_ScriptDir%\src\lib\WebView2.ahk
+
 ; 包含功能模块
 #Include %A_ScriptDir%\src\data_manager.ahk
 #Include %A_ScriptDir%\src\hotkey_manager.ahk
@@ -45,6 +48,14 @@ InitApp() {
     if !DirExist(iconDir)
         DirCreate(iconDir)
     
+    ; 确保UI目录存在
+    uiDir := A_ScriptDir "\ui"
+    if !DirExist(uiDir) {
+        DirCreate(uiDir)
+        DirCreate(uiDir "\css")
+        DirCreate(uiDir "\js")
+    }
+    
     ; 加载设置
     LoadSettings()
     
@@ -55,7 +66,9 @@ InitApp() {
     InitIntegratedScripts()
     
     ; 初始化UI (WebView2)
-    InitWebView2()
+    if !InitWebView2() {
+        MsgBox("WebView2运行时未安装或初始化失败，程序可能无法正常工作。`n请安装WebView2运行时后重试。", "初始化错误", "Icon!")
+    }
 }
 
 ; 设置托盘图标
@@ -72,21 +85,40 @@ SetupTrayIcon() {
         TraySetIcon("shell32.dll", 45)  ; 使用系统图标作为默认图标
     }
     
-    ; 设置托盘菜单
+    ; 设置托盘菜单 - 使用匿名函数作为包装器
     A_TrayMenu.Delete()  ; 清除默认菜单项
-    A_TrayMenu.Add("打开管理面板", ShowManagerPanel)
-    A_TrayMenu.Add("显示选择器", ShowSnippetSelector)
-    A_TrayMenu.Add("重新加载数据", ReloadAllData)
+    
+    ; 添加菜单项，使用匿名函数调用实际函数
+    A_TrayMenu.Add("打开管理面板", (*) => ShowManagerPanel())
+    A_TrayMenu.Add("显示选择器", (*) => ShowSnippetSelector())
+    A_TrayMenu.Add("重新加载数据", (*) => ReloadAllData())
     A_TrayMenu.Add()  ; 添加分隔符
-    A_TrayMenu.Add("关于", ShowAbout)
+    A_TrayMenu.Add("关于", (*) => ShowAbout())
     A_TrayMenu.Add("退出", (*) => ExitApp())
     A_TrayMenu.Default := "打开管理面板"
 }
 
 ; 初始化热键
 InitHotkeys() {
-    ; 注册片段选择器热键
-    RegisterHotkey(settings["hotkey"], ShowSnippetSelector)
+    ; 注册全局热键
+    try {
+        ; 使用热键管理器注册热键而不是直接调用Hotkey命令
+        if !RegisterHotkey(settings["hotkey"], ShowSnippetSelector) {
+            ; 如果主热键失败，尝试备用热键
+            alternativeHotkey := "^!Space"  ; Ctrl+Alt+Space作为备用
+            MsgBox("主热键注册失败，尝试使用备用热键: " alternativeHotkey, "警告", "Icon!")
+            
+            if RegisterHotkey(alternativeHotkey, ShowSnippetSelector) {
+                settings["hotkey"] := alternativeHotkey
+                SaveSettingsToFile()
+                MsgBox("已成功注册备用热键: " alternativeHotkey, "成功", "Icon!")
+            } else {
+                MsgBox("无法注册任何热键，请在托盘菜单中手动打开片段选择器。", "错误", "Icon!")
+            }
+        }
+    } catch Error as e {
+        MsgBox("热键注册出错: " e.Message, "错误", "Icon!")
+    }
 }
 
 ; 显示关于对话框
@@ -115,7 +147,7 @@ activeWindow := {}     ; 激活窗口引用
 
 ; 默认设置
 settings := Map(
-    "hotkey", "^+Space",      ; 默认快捷键: Ctrl+Shift+Space
+    "hotkey", "^!Space",      ; 默认热键改为: Ctrl+Alt+Space，避免与常用组合冲突
     "autoHide", true,         ; 选择后自动隐藏窗口
     "alwaysOnTop", true       ; 窗口保持在最前
 )
@@ -127,6 +159,9 @@ LoadSettings()
 ; 加载保存的片段
 ReloadAllData()
 
+; 以下托盘图标设置代码已移至SetupTrayIcon()函数
+; 删除重复代码以避免冲突
+/*
 ; 创建系统托盘图标 - 修复图标路径
 iconPath := A_ScriptDir "\icon\icon.png"
 try {
@@ -137,19 +172,13 @@ try {
 }
 
 A_TrayMenu.Delete()  ; 清除默认菜单项
-A_TrayMenu.Add("打开管理面板", ShowManagerPanel)
-A_TrayMenu.Add("重新加载数据", ReloadAllData)
-A_TrayMenu.Add("关于", ShowAbout)
+A_TrayMenu.Add("打开管理面板", "ShowManagerPanel")
+A_TrayMenu.Add("重新加载数据", "ReloadAllData")
+A_TrayMenu.Add("关于", "ShowAbout")
 A_TrayMenu.Add()  ; 添加分隔符
 A_TrayMenu.Add("退出", (*) => ExitApp())
 A_TrayMenu.Default := "打开管理面板"
-
-; 注册全局热键
-try {
-    Hotkey settings["hotkey"], ShowSnippetSelector
-} catch Error as e {
-    MsgBox("无法注册热键: " settings["hotkey"] "`n错误: " e.Message, "错误", "Icon!")
-}
+*/
 
 ; =============== 片段选择器窗口 ===============
 /*
@@ -414,7 +443,7 @@ SaveSettingsToFile() {
         
         ; 确保所有需要保存的设置都已赋值
         if !settings.Has("hotkey")
-            settings["hotkey"] := "^+Space"
+            settings["hotkey"] := "^!Space"
         if !settings.Has("autoHide")
             settings["autoHide"] := true
         if !settings.Has("alwaysOnTop")
@@ -440,7 +469,9 @@ ReloadData(*) {
 
 ; =============== JXON 库函数 (JSON处理) ===============
 ; 来源: https://github.com/TheArkive/JXON_ahk2
+; 注意：以下函数已经在src\lib\Jxon.ahk中定义，这里注释掉以避免冲突
 
+/*
 Jxon_Load(&src, args*) {
     key := "", is_key := false
     stack := [ tree := [] ]
@@ -607,4 +638,5 @@ Jxon_Escape(str) {
     
     return str
 }
+*/
 

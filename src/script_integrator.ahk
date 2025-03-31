@@ -4,17 +4,17 @@
 ; 存储已加载的脚本实例
 global loadedScripts := Map()
 
-; 集成脚本的路径
-global scriptsPaths := {
-    "easy-window-dragging": A_ScriptDir "\integrated_scripts\easy-window-dragging.ahk",
-    "on-screen-keyboard": A_ScriptDir "\integrated_scripts\on-screen-keyboard.ahk"
-}
+; 脚本路径映射
+scriptsPaths := Map(
+    "easy-window-dragging", A_ScriptDir "\integrated_scripts\easy-window-dragging.ahk", 
+    "on-screen-keyboard", A_ScriptDir "\integrated_scripts\on-screen-keyboard.ahk"
+)
 
 ; ==================== 脚本集成函数 ====================
 
 ; 加载外部脚本
 LoadScript(scriptName) {
-    if !scriptsPaths.HasOwnProp(scriptName)
+    if !scriptsPaths.Has(scriptName)
         return false
         
     scriptPath := scriptsPaths[scriptName]
@@ -290,4 +290,20 @@ CenterWindow(guiObj) {
         
         FileAppend(keyboardScript, keyboardPath)
     }
+}
+
+; 加载指定的集成脚本
+LoadIntegratedScript(scriptName) {
+    If !scriptsPaths.Has(scriptName)
+        return false
+        
+    return LoadScript(scriptName)
+}
+
+; 卸载指定的集成脚本
+UnloadIntegratedScript(scriptName) {
+    If !scriptsPaths.Has(scriptName) || !loadedScripts.Has(scriptName)
+        return false
+        
+    return UnloadScript(scriptName)
 } 
