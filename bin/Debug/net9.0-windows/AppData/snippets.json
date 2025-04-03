@@ -1,0 +1,14 @@
+{
+  "常用": {
+    "问候语": "您好，感谢您的来信。",
+    "签名": "此致,\n敬礼\n张三"
+  },
+  "代码": {
+    "HTML模板": "<!DOCTYPE html>\n<html>\n<head>\n  <title>标题</title>\n</head>\n<body>\n  <h1>Hello World</h1>\n</body>\n</html>",
+    "C#函数": "public void MyFunction()\n{\n    Console.WriteLine(\"Hello World\");\n}"
+  },
+  "邮件模板": {
+    "会议邀请": "主题：项目讨论会议邀请\n\n尊敬的团队成员：\n\n我们将于本周五下午2点在会议室A举行项目进度讨论会，请准时参加。",
+    "工作汇报": "主题：周工作汇报\n\n尊敬的领导：\n\n本周我主要完成了以下工作：\n1. 项目A的需求分析\n2. 项目B的测试计划编写\n\n下周计划：\n1. 完成项目A的设计文档\n2. 开始项目B的单元测试"
+  }
+}

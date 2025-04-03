@@ -1,0 +1,9 @@
+{
+  "hotkey": "Control+Shift+Space",
+  "autoHide": true,
+  "alwaysOnTop": true,
+  "scripts": {
+    "easy-window-dragging": false,
+    "on-screen-keyboard": false
+  }
+}

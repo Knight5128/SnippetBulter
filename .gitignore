@@ -46,3 +46,7 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Directories for history backup & notes
+.specstory/
+*.txt

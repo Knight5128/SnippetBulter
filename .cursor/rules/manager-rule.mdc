@@ -12,9 +12,9 @@ alwaysApply: true
 
 ## 2. 核心技术栈 (Core Technologies)
 
-*   **核心逻辑与后台:** AutoHotkey v2 (推荐使用 v2 以获得更好的结构和现代特性)
+*   **核心逻辑与后台:** .NET
 *   **前端 UI (唤出页面 & 管理面板):**
-    *   **推荐方案:** AHK + Web UI (HTML, CSS, JavaScript) via WebView2 (例如使用 `AHK-WebView2` 库或类似方案)。这能最好地实现“优美的前端”要求，提供现代化的卡片布局、动画效果和灵活的样式。
+    *   **推荐方案:** .NET + Web UI (HTML, CSS, JavaScript) via WebView2 (例如使用 `AHK-WebView2` 库或类似方案)。这能最好地实现“优美的前端”要求，提供现代化的卡片布局、动画效果和灵活的样式。
     *   **备选方案:** 纯 AHK GUI v2。虽然可行，但实现复杂、美观的动态 UI (如卡片布局、平滑折叠/展开) 会比较困难且性能可能受限。
 *   **数据存储:**
     *   **推荐方案:** JSON 文件。结构清晰，易于读写和解析，适合存储片段、分组结构和配置。

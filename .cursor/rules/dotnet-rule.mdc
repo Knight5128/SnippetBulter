@@ -1,0 +1,116 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+
+## 1. 项目目标与愿景 (Project Goal & Vision)
+
+开发一个基于 .NET 的高效、美观、易用的文本片段管理工具。核心功能是让用户能够快速存储、组织和检索常用的文本片段，并通过全局快捷方式将其复制到剪贴板。同时，集成可选的增强功能。最终目标是将其打包成一个独立的、用户友好的、现代化的 Windows 应用程序。
+
+## 2. 核心技术栈 (Core Technologies)
+
+*   **后端逻辑 & 宿主:** .NET (推荐 .NET 6/7/8 或更高版本) using C#
+    *   **框架:** Windows Presentation Foundation (WPF) 或 Windows Forms (WinForms) 用于创建后台进程、系统托盘图标和管理 WebView2 实例。WPF 可能在现代 UI 集成方面更灵活。
+*   **前端 UI (唤出页面 & 管理面板):** HTML, CSS, JavaScript running within **Microsoft Edge WebView2**.
+*   **全局热键:** 使用 .NET 兼容的库，例如 `NHotkey` (基于 `RegisterHotkey` WinAPI) 或其他成熟的全局热键库。
+*   **剪贴板操作:** `System.Windows.Clipboard` (WPF) or `System.Windows.Forms.Clipboard` (WinForms).
+*   **数据存储:** JSON 文件 (使用 `System.Text.Json` 或 Newtonsoft.Json 进行序列化/反序列化)。
+*   **打包:** .NET 发布机制 (例如，自包含部署, ClickOnce, MSIX).
+
+## 3. 架构设计 (Architecture Design)
+
+*   **主进程 (.NET Backend Application):**
+    *   一个后台运行的 .NET 应用程序 (WPF/WinForms)，没有可见主窗口，但管理系统托盘图标。
+    *   负责注册和监听全局快捷键。
+    *   管理 WebView2 控件实例 (一个用于选择器，一个用于管理面板，或根据需要复用)。
+    *   处理与 WebView2 前端 UI 的双向通信 (使用 `CoreWebView2.PostWebMessageAsJson`, `CoreWebView2.WebMessageReceived`, `CoreWebView2.ExecuteScriptAsync`)。
+    *   负责 JSON 数据文件的读取、写入和管理 (CRUD 操作)。
+    *   实现核心业务逻辑，如复制文本到剪贴板。
+    *   管理和控制集成的附加功能 (原 `easy-window-dragging` 和 `on-screen-keyboard` 功能的 .NET 实现或替代方案)。
+    *   提供托盘菜单选项（打开管理面板、退出等）。
+*   **前端 UI (Web Interface in WebView2):**
+    *   **Snippet 选择页面 (唤出页面):**
+        *   从 .NET 后端接收数据，动态渲染卡片式布局和分组。
+        *   实现分组的展开/折叠、搜索/过滤 (可选)。
+        *   响应用户交互 (如双击)，通过 WebMessage 将请求发送回 .NET 后端。
+        *   设计为临时弹出窗口，可通过 .NET 后端控制其显示、隐藏、关闭。
+    *   **管理面板页面:**
+        *   提供完整的 CRUD 操作界面，用于管理 Snippet 和分组。
+        *   提供设置界面（快捷键配置、附加功能开关等）。
+        *   所有操作通过与 .NET 后端的通信来触发业务逻辑和数据持久化。
+*   **数据层 (Data Layer):**
+    *   `snippets.json`: 存储片段和分组数据。
+    *   `config.json`: 存储应用配置（快捷键、附加功能状态等）。
+    *   使用 C# 模型类映射 JSON 结构。
+
+## 4. 核心功能模块细化 (Core Feature Modules)
+
+*   **4.1 全局热键监听 (.NET Global Hotkey Listener):**
+    *   使用选定的 .NET 库注册全局热键。
+    *   热键触发时，调用 .NET 后端逻辑以显示或激活 Snippet 选择器 WebView2 窗口。
+    *   提供配置界面让用户自定义热键。
+*   **4.2 Snippet 选择 UI (WebView2 + JS):**
+    *   UI 布局和交互逻辑与原设计类似 (卡片、折叠分组)。
+    *   通过 JS 与 .NET 后端进行通信，获取数据和发送用户操作指令（如“复制此片段”）。
+    *   .NET 后端控制 WebView2 窗口的创建、定位、显示/隐藏。
+*   **4.3 管理面板 UI (WebView2 + JS):**
+    *   提供丰富的 UI 控件进行 Snippet 和分组的增删改查及排序。
+    *   设置页面用于修改配置，并通过 JS -> .NET 通信保存到 `config.json`。
+*   **4.4 数据持久化 (.NET Data Persistence):**
+    *   使用 `System.Text.Json` 或 Newtonsoft.Json 在 C# 中高效、安全地读写 JSON 文件。
+    *   定义清晰的 C# DTO (Data Transfer Object) 类来表示 Snippet 和 Group。
+    *   考虑异步 I/O 操作以避免 UI 阻塞。
+*   **4.5 集成功能管理 (Integrated Feature Management):**
+    *   原 `easy-window-dragging.ahk` 和 `on-screen-keyboard.ahk` 的功能需要：
+        *   **首选方案:** 在 C# 中重新实现这些功能。例如，窗口拖动可通过 P/Invoke 调用 Windows API 实现，屏幕键盘可创建一个简单的 WPF/WinForms 窗口。
+        *   **备选方案 (如果重写困难):** 如果用户系统上仍安装了 AHK，.NET 应用可以根据配置启动/停止这些独立的 `.ahk` 脚本进程。但这增加了对 AHK 的依赖。
+    *   管理面板提供开关来启用/禁用这些 **内置** 或 **托管** 的功能。
+*   **4.6 后台运行与托盘图标 (.NET Background Operation & Tray Icon):**
+    *   使用 WPF/WinForms 的 `NotifyIcon` 类（或如 `Hardcodet.Wpf.TaskbarNotification` 的库）创建系统托盘图标和上下文菜单。
+    *   确保关闭管理面板窗口不会退出整个应用程序。退出操作应通过托盘菜单触发。
+
+## 5. 开发原则 (Development Principles)
+
+*   **代码风格:** 遵循 C# 和 .NET 的官方编码规范和最佳实践 (例如 SOLID 原则, async/await 模式)。
+*   **版本控制:** 使用 Git。
+*   **项目结构:** 采用清晰的 .NET 项目/解决方案结构。
+*   **依赖管理:** 使用 NuGet 管理第三方库。
+*   **用户体验:** 优先考虑简洁、直观、响应迅速的用户体验。
+*   **健壮性:** 实现适当的错误处理、日志记录和异常管理。
+*   **异步编程:** 在涉及 I/O 或可能耗时的操作时，优先使用 `async`/`await`。
+
+## 6. 建议文件结构 (Suggested File Structure - .NET Solution)
+
+Text-Snippet-Manager.sln
+│
+└── TextSnippetManager.App/ (WPF or WinForms Project)
+├── TextSnippetManager.App.csproj
+├── App.xaml # 应用入口
+├── MainWindow.xaml / Form1.cs # (可能隐藏)主窗口，用于托管 NotifyIcon 和 WebView2
+├── Services/ # 业务逻辑服务
+│ ├── DataService.cs # 数据读写
+│ ├── HotkeyService.cs # 热键管理
+│ ├── ClipboardService.cs # 剪贴板操作
+│ └── FeatureManagementService.cs # 附加功能管理
+├── Models/ # 数据模型 (DTOs)
+│ ├── Snippet.cs
+│ ├── Group.cs
+│ └── Config.cs
+├── WebView/ # WebView2 相关逻辑
+│ ├── WebViewCoordinator.cs # 管理 WebView2 实例和通信
+│ └── BridgeObjects/ # (可选) 用于 JS 调用的 C# 对象
+├── Assets/ # 图标等资源
+├── frontend/ # 前端 UI 文件 (会被复制到输出目录)
+│ ├── index.html # 管理面板 HTML
+│ ├── selector.html # 选择器页面 HTML
+│ ├── css/
+│ └── js/
+└── data/ # (运行时创建或部署包含)
+    ├── snippets.json
+    └── config.json
+
+
+
+
+
