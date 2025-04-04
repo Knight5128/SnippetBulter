@@ -29,18 +29,32 @@ $(document).ready(function() {
 
 // 初始化
 function initialize() {
-    // 使用store模块获取数据
-    if (store.devMode) {
+    // 使用全局store对象获取数据
+    if (window.store && window.store.devMode) {
         // 开发模式下直接渲染数据
-        snippetsData = store.snippetsData;
-        settings = store.settings;
+        snippetsData = window.store.snippetsData;
+        settings = window.store.settings;
         renderSnippets();
         $("#loading").hide();
         $("#snippetsContainer").show();
-    } else {
+    } else if (window.chrome && window.chrome.webview) {
         // 在正常模式下请求数据
         window.chrome.webview.addEventListener('message', handleMessage);
         requestDataFromAHK();
+    } else {
+        // 如果没有store且没有webview，尝试开发模式
+        console.log("无法访问store或webview，尝试开发模式");
+        // 创建一些默认数据用于测试
+        snippetsData = {
+            "常用": {
+                "测试片段": "这是一个测试片段，因为无法加载实际数据。"
+            }
+        };
+        settings = { autoHide: true };
+        renderSnippets();
+        $("#loading").hide();
+        $("#snippetsContainer").show();
+        showError("无法连接到数据源，使用测试数据");
     }
 }
 
@@ -143,19 +157,39 @@ function copySnippet() {
     const snippetName = $snippet.attr('data-name');
     const snippetContent = $snippet.attr('data-content');
     
-    // 使用store模块复制
-    store.copySnippet(snippetContent)
-        .then(() => {
-            showToast(`已复制: ${snippetName}`);
-            // 如果设置了自动隐藏，则关闭窗口
-            if (settings.autoHide) {
-                setTimeout(hideWindow, 500);
-            }
-        })
-        .catch(error => {
-            console.error('复制失败:', error);
+    // 使用全局store模块复制
+    if (window.store) {
+        window.store.copySnippet(snippetContent)
+            .then(() => {
+                showToast(`已复制: ${snippetName}`);
+                // 如果设置了自动隐藏，则关闭窗口
+                if (settings.autoHide) {
+                    setTimeout(hideWindow, 500);
+                }
+            })
+            .catch(error => {
+                console.error('复制失败:', error);
+                showToast('复制失败');
+            });
+    } else {
+        // 如果store不可用，尝试使用备用方法
+        try {
+            navigator.clipboard.writeText(snippetContent)
+                .then(() => {
+                    showToast(`已复制: ${snippetName}`);
+                    if (settings.autoHide) {
+                        setTimeout(hideWindow, 500);
+                    }
+                })
+                .catch(err => {
+                    console.error('复制失败:', err);
+                    showToast('复制失败');
+                });
+        } catch (error) {
+            console.error('复制操作失败:', error);
             showToast('复制失败');
-        });
+        }
+    }
 }
 
 // 隐藏窗口

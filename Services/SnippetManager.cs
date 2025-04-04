@@ -20,13 +20,14 @@ namespace SnippetButler.Services
         
         public SnippetManager()
         {
-            _dataPath = Path.Combine(
-                Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory) ?? string.Empty,
-                "AppData",
-                "snippets.json");
+            // 使用应用程序根目录下的data目录
+            string baseDir = Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory) ?? string.Empty;
+            _dataPath = Path.Combine(baseDir, "data", "snippets.json");
                 
-            // 确保目录存在
+            // 确保data目录存在
             Directory.CreateDirectory(Path.GetDirectoryName(_dataPath) ?? string.Empty);
+
+            Console.WriteLine($"片段数据文件路径: {_dataPath}");
         }
         
         public bool LoadSnippets()
@@ -35,9 +36,36 @@ namespace SnippetButler.Services
             {
                 if (File.Exists(_dataPath))
                 {
+                    Console.WriteLine("尝试加载片段数据文件...");
                     string json = File.ReadAllText(_dataPath);
-                    _snippetsData = JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, string>>>(json) ??
-                                    new Dictionary<string, Dictionary<string, string>>();
+                    
+                    // 处理空文件或无效JSON的情况
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        Console.WriteLine("片段数据文件为空，创建默认示例数据");
+                        CreateDefaultData();
+                        return true;
+                    }
+
+                    try
+                    {
+                        _snippetsData = JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, string>>>(json) ??
+                                      new Dictionary<string, Dictionary<string, string>>();
+                    }
+                    catch (JsonException ex)
+                    {
+                        Console.WriteLine($"解析片段数据JSON失败: {ex.Message}，创建默认示例数据");
+                        CreateDefaultData();
+                        return true;
+                    }
+                    
+                    // 如果反序列化成功但数据为空，创建示例数据
+                    if (_snippetsData.Count == 0)
+                    {
+                        Console.WriteLine("片段数据为空，创建默认示例数据");
+                        CreateDefaultData();
+                        return true;
+                    }
                     
                     // 转换为Group对象
                     _groups = new Dictionary<string, Group>();
@@ -50,18 +78,21 @@ namespace SnippetButler.Services
                         _groups.Add(group.Key, newGroup);
                     }
                     
+                    Console.WriteLine($"已加载 {_groups.Count} 个分组的片段数据");
                     return true;
                 }
                 
-                // 如果文件不存在，创建默认数据
+                Console.WriteLine("片段数据文件不存在，创建默认示例数据");
+                // 文件不存在，创建示例数据
                 CreateDefaultData();
-                return false;
+                return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"加载片段数据失败: {ex.Message}");
+                Console.WriteLine($"加载片段数据失败: {ex.Message}，创建默认示例数据");
+                // 出错也创建示例数据
                 CreateDefaultData();
-                return false;
+                return true;
             }
         }
         
@@ -74,13 +105,58 @@ namespace SnippetButler.Services
                     g => g.Key,
                     g => g.Value.Snippets);
                 
+                // 确保目录存在
+                string? dirPath = Path.GetDirectoryName(_dataPath);
+                if (!string.IsNullOrEmpty(dirPath) && !Directory.Exists(dirPath))
+                {
+                    Console.WriteLine($"创建目录: {dirPath}");
+                    Directory.CreateDirectory(dirPath);
+                }
+                
                 string json = JsonConvert.SerializeObject(_snippetsData, Formatting.Indented);
                 await File.WriteAllTextAsync(_dataPath, json);
+                Console.WriteLine($"片段数据已保存到 {_dataPath}");
                 SnippetsChanged?.Invoke(this, EventArgs.Empty);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"保存片段数据失败: {ex.Message}");
+                try {
+                    // 尝试使用同步方法保存，作为后备
+                    string json = JsonConvert.SerializeObject(_snippetsData, Formatting.Indented);
+                    File.WriteAllText(_dataPath, json);
+                    Console.WriteLine($"使用同步方法保存片段数据成功");
+                    SnippetsChanged?.Invoke(this, EventArgs.Empty);
+                }
+                catch (Exception syncEx) {
+                    Console.WriteLine($"同步方法保存片段数据也失败: {syncEx.Message}");
+                }
+            }
+        }
+        
+        // 保存从JavaScript接收到的原始片段数据
+        public async Task SaveSnippetsDataAsync(Dictionary<string, Dictionary<string, string>> snippetsData)
+        {
+            try
+            {
+                _snippetsData = snippetsData ?? new Dictionary<string, Dictionary<string, string>>();
+                
+                // 将数据转换回Group对象
+                _groups = new Dictionary<string, Group>();
+                foreach (var group in _snippetsData)
+                {
+                    var newGroup = new Group(group.Key)
+                    {
+                        Snippets = group.Value ?? new Dictionary<string, string>()
+                    };
+                    _groups.Add(group.Key, newGroup);
+                }
+                
+                await SaveSnippetsAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"保存从JavaScript接收的片段数据失败: {ex.Message}");
             }
         }
         
@@ -168,7 +244,8 @@ namespace SnippetButler.Services
             return true;
         }
         
-        private void CreateDefaultData()
+        // 创建默认示例数据的方法，只在用户需要时调用
+        public void CreateDefaultData()
         {
             _groups = new Dictionary<string, Group>
             {

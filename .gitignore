@@ -1,7 +1,10 @@
-### Autohotkey ###
+### Snippet Bulter gitignore###
 # Windows image file caches
 Thumbs.db
 ehthumbs.db
+
+# Image files during testing
+/bin
 
 # Folder config file
 Desktop.ini

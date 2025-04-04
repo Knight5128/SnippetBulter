@@ -57,21 +57,34 @@ namespace SnippetButler.Windows
                     Height = 400;
                 }
                 
-                // 确保WebView2环境可用 - 使用相对于应用程序的数据目录
+                // 确保WebView2环境可用 - 使用统一的data目录
                 string userDataFolder = Path.Combine(
                     Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory) ?? string.Empty,
-                    "WebView2Data");
+                    "data", "webview");
                     
                 // 确保目录存在
                 Directory.CreateDirectory(userDataFolder);
+                
+                Console.WriteLine($"WebView2数据目录: {userDataFolder} (窗口类型: {(_isSelector ? "选择器" : "管理面板")})");
                 
                 var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
                 
                 await webView.EnsureCoreWebView2Async(env);
                 
+                // 添加调试消息处理
+                webView.CoreWebView2.WebResourceResponseReceived += (s, args) => {
+                    if (args.Request.Uri.Contains(_htmlPath) || args.Request.Uri.Contains("main.js") || args.Request.Uri.Contains("store.js")) {
+                        Console.WriteLine($"请求资源: {args.Request.Uri}, 状态: {args.Response.StatusCode}");
+                    }
+                };
+                
+                // 启用开发者工具 (方便调试)
+                webView.CoreWebView2.Settings.AreDevToolsEnabled = true;
+                
                 // 导航到目标页面
                 if (File.Exists(_htmlPath))
                 {
+                    Console.WriteLine($"导航到: {_htmlPath}");
                     webView.CoreWebView2.Navigate(new Uri(_htmlPath).ToString());
                 }
                 else

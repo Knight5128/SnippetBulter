@@ -104,14 +104,14 @@ namespace SnippetButler
 
         private void EnsureAppDirectoriesExist()
         {
-            // 使用相对于应用程序的数据目录
-            string appDataPath = Path.Combine(
-                Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory) ?? string.Empty,
-                "AppData");
+            // 使用应用程序根目录下的data目录
+            string appBaseDir = Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory) ?? string.Empty;
+            string dataPath = Path.Combine(appBaseDir, "data");
             
-            if (!Directory.Exists(appDataPath))
+            if (!Directory.Exists(dataPath))
             {
-                Directory.CreateDirectory(appDataPath);
+                Directory.CreateDirectory(dataPath);
+                Console.WriteLine($"创建数据目录: {dataPath}");
             }
         }
     }
