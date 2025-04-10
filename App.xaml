@@ -11,7 +11,7 @@
             </ResourceDictionary.MergedDictionaries>
             <!-- 托盘图标 -->
             <tb:TaskbarIcon x:Key="NotifyIcon"
-                          IconSource="/Resources/AppIcon.ico"
+                          IconSource="/Resources/Icons/AppIcon.ico"
                           ToolTipText="Snippet Butler">
                 <tb:TaskbarIcon.ContextMenu>
                     <ContextMenu>

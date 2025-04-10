@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "vfto3DnSN14=",
+  "dgSpecHash": "e8NB4QgaP2o=",
   "success": true,
-  "projectFilePath": "Z:\\OneDrive\\MyProjects\\_AutoHotkey\\My_Scripts\\SnippetBulter\\SnippetButler.csproj",
+  "projectFilePath": "Z:\\OneDrive\\MyProjects\\_Myapps\\SnippetBulter\\SnippetButler.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\21521\\.nuget\\packages\\hardcodet.notifyicon.wpf\\2.0.0\\hardcodet.notifyicon.wpf.2.0.0.nupkg.sha512",
     "C:\\Users\\21521\\.nuget\\packages\\microsoft.web.webview2\\1.0.2277.86\\microsoft.web.webview2.1.0.2277.86.nupkg.sha512",
